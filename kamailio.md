@@ -38,6 +38,7 @@ O instalador:
 
 - configura o repositório oficial Kamailio 6.1.x antes da instalação;
   - Debian 12/13: `http://deb.kamailio.org/kamailio61` com keyring `/usr/share/keyrings/kamailio.gpg`;
+  - Debian usa pinning em `/etc/apt/preferences.d/kamailio` para preferir os pacotes 6.1.x oficiais em vez dos pacotes antigos da distribuição;
   - Rocky 8/9: `https://rpm.kamailio.org/rocky/<major>/6.1/6.1/<arch>/`;
 - instala Kamailio e ferramentas de troubleshooting (`sngrep`, `tcpdump`, `ngrep`, `mtr`, `jq`, etc.);
 - cria ou reaproveita `/etc/mnscloud/softswitch/node.uuid`;
