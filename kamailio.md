@@ -46,6 +46,9 @@ O instalador:
 - faz backup do `/etc/kamailio/kamailio.cfg` original como `.bkp`;
 - gera um `kamailio.cfg` mínimo para consulta HTTP ao Manaos Cloud.
 
+O arquivo gerado usa `http_async_client` no padrão Kamailio 6.1: `http_async_query(url, route_name)`.
+Quando houver corpo POST, o instalador configura `$http_req(method)`, `$http_req(hdr)` e `$http_req(body)` antes da chamada.
+
 ## Troubleshooting
 
 Comandos úteis:
