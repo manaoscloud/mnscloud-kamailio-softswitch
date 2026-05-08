@@ -48,6 +48,7 @@ O instalador:
 
 O arquivo gerado usa `http_async_client` no padrão Kamailio 6.1: `http_async_query(url, route_name)`.
 Quando houver corpo POST, o instalador configura `$http_req(method)`, `$http_req(hdr)` e `$http_req(body)` antes da chamada.
+O `tm.so` é carregado antes dos módulos que dependem de transação, como `sl.so` e `http_async_client.so`.
 
 ## Troubleshooting
 
