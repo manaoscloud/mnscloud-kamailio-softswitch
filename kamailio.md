@@ -20,11 +20,14 @@ Este diretório documenta o uso do Kamailio como camada Softswitch/SIP edge do M
 Os endpoints internos ficam em:
 
 - `POST /api/v1/softswitch/kamailio/heartbeat`
+- `POST /api/v1/softswitch/kamailio/bootstrap`
 - `POST /api/v1/softswitch/kamailio/auth`
 - `POST /api/v1/softswitch/kamailio/route`
 - `POST /api/v1/softswitch/kamailio/accounting`
 
-O `node_uuid` pode ir via query string ou header `X-Softswitch-Node-UUID`.
+O `node_uuid` pode ir via query string ou header `X-Softswitch-Node-UUID`. O bootstrap exige
+`Authorization: Bearer <token>` usando `KAMAILIO_API_TOKEN`, `SOFTSWITCH_API_TOKEN` ou
+`WORKER_PABX_TOKEN`.
 
 ## Instalação
 
@@ -42,7 +45,8 @@ O instalador:
   - Rocky 8/9: `https://rpm.kamailio.org/rocky/<major>/6.1/6.1/<arch>/`;
 - instala Kamailio e ferramentas de troubleshooting (`sngrep`, `tcpdump`, `ngrep`, `mtr`, `jq`, etc.);
 - cria ou reaproveita `/etc/mnscloud/softswitch/node.uuid`;
-- tenta vincular o node UUID ao cadastro de servidor pelo hostname/IP quando as credenciais DB estão disponíveis;
+- tenta vincular o node UUID via API bootstrap usando hostname, IPv4 privado e IPv4 público descoberto;
+- não executa SQL direto nem instala cliente MariaDB para vincular o node UUID;
 - faz backup do `/etc/kamailio/kamailio.cfg` original como `.bkp`;
 - gera um `kamailio.cfg` mínimo para consulta HTTP ao Manaos Cloud.
 
