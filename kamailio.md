@@ -4,7 +4,8 @@ Este diretório documenta o uso do Kamailio como camada Softswitch/SIP edge do m
 
 ## Modelo
 
-- O servidor físico mantém um UUID local em `/etc/mnscloud/softswitch/node.uuid`.
+- O servidor físico mantém a URL base da API em `/etc/mnscloud/softswitch/api.base`.
+- O servidor físico mantém UUID local em `/etc/mnscloud/softswitch/node.uuid`.
 - O servidor físico mantém token local em `/etc/mnscloud/softswitch/api.token`.
 - Esse UUID é vinculado ao cadastro `VoipSoftswitchServer.VsrNodeUUID`.
 - O hash do token é salvo em `VoipSoftswitchServer.VsrApiTokenHash`.
@@ -41,6 +42,7 @@ bash scripts/install-kamailio.sh
 
 O instalador:
 
+- solicita a URL base da API na primeira execução e salva em `/etc/mnscloud/softswitch/api.base`;
 - configura o repositório oficial Kamailio 6.1.x antes da instalação;
   - Debian 12/13: `http://deb.kamailio.org/kamailio61` com keyring `/usr/share/keyrings/kamailio.gpg`;
   - Debian usa pinning em `/etc/apt/preferences.d/kamailio` para preferir os pacotes 6.1.x oficiais em vez dos pacotes antigos da distribuição;
