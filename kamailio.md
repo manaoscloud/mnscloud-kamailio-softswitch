@@ -26,8 +26,7 @@ Os endpoints internos ficam em:
 - `POST /api/v1/softswitch/kamailio/accounting`
 
 O `node_uuid` pode ir via query string ou header `X-Softswitch-Node-UUID`. O bootstrap exige
-`Authorization: Bearer <token>` usando `KAMAILIO_API_TOKEN`, `SOFTSWITCH_API_TOKEN` ou
-`WORKER_PABX_TOKEN`.
+`Authorization: Bearer <token>` usando `KAMAILIO_API_TOKEN` ou `SOFTSWITCH_API_TOKEN`.
 
 ## Instalação
 
