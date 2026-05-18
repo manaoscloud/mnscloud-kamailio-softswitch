@@ -72,9 +72,9 @@ detect_kamailio_os() {
 
 generate_uuid() {
   if [[ -r /proc/sys/kernel/random/uuid ]]; then
-    tr '[:lower:]' '[:upper:]' < /proc/sys/kernel/random/uuid
+    tr '[:upper:]' '[:lower:]' < /proc/sys/kernel/random/uuid
   elif command -v uuidgen >/dev/null 2>&1; then
-    uuidgen | tr '[:lower:]' '[:upper:]'
+    uuidgen | tr '[:upper:]' '[:lower:]'
   else
     err "Could not generate local UUID."
     return 1
@@ -121,7 +121,7 @@ ensure_node_uuid_file() {
   fi
   compact="${NODE_UUID//-/}"
   [[ "${compact}" =~ ^[0-9A-Fa-f]{32}$ ]] || { err "Node UUID invalido em ${NODE_UUID_FILE}: ${NODE_UUID}"; return 1; }
-  compact="$(echo "${compact}" | tr '[:lower:]' '[:upper:]')"
+  compact="$(echo "${compact}" | tr '[:upper:]' '[:lower:]')"
   NODE_UUID="${compact:0:8}-${compact:8:4}-${compact:12:4}-${compact:16:4}-${compact:20:12}"
   write_file "${NODE_UUID_FILE}" "${NODE_UUID}"
   run "chown root:root '${NODE_UUID_FILE}'"
