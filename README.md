@@ -14,6 +14,19 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 - Do not commit secrets, customer data, production infrastructure values, provider credentials, or
   private business rules.
 
+## Contract
+
+- Product/runtime: `mnscloud-kamailio`
+- Project directory: `/opt/mnscloud/mnscloud-kamailio`
+- Installer: `scripts/install-kamailio.sh`
+- Service: `kamailio.service`
+- Local state prefix: `/etc/mnscloud/softswitch`
+- Node UUID: `/etc/mnscloud/softswitch/node.uuid`
+- API token: `/etc/mnscloud/softswitch/api.token`
+- API base URL: `/etc/mnscloud/softswitch/api.base`
+- Kamailio config: `/etc/kamailio/kamailio.cfg`
+- Config validation: `kamailio -c -f /etc/kamailio/kamailio.cfg`
+
 ## Install
 
 Install GitHub CLI if needed:
