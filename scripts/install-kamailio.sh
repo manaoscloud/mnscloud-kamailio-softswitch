@@ -209,7 +209,7 @@ Package: kamcli
 Pin: origin deb.kamailio.org
 Pin-Priority: 1001"
   run "apt-get update -y"
-  run "apt-get install -y --no-install-recommends kamailio kamailio-extra-modules kamailio-utils-modules kamailio-tls-modules kamailio-json-modules sngrep tcpdump ngrep dnsutils traceroute mtr-tiny netcat-openbsd jq ca-certificates curl"
+  run "apt-get install -y --no-install-recommends kamailio kamailio-extra-modules kamailio-utils-modules kamailio-tls-modules kamailio-json-modules sngrep tcpdump ngrep dnsutils iputils-ping traceroute mtr-tiny netcat-openbsd jq ca-certificates curl"
   run "kamailio -v | head -n 1"
 }
 
@@ -236,7 +236,7 @@ gpgcheck=1
 gpgkey=https://rpm.kamailio.org/rpm-pub.key"
   run "dnf clean all"
   run "dnf makecache --repo kamailio-6.1"
-  run "dnf install -y kamailio kamailio-utils kamailio-json kamailio-curl sngrep tcpdump ngrep bind-utils traceroute mtr nc jq curl ca-certificates"
+  run "dnf install -y kamailio kamailio-utils kamailio-json kamailio-curl sngrep tcpdump ngrep bind-utils iputils traceroute mtr nc jq curl ca-certificates"
   run "kamailio -v | head -n 1"
 }
 
