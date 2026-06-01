@@ -14,6 +14,10 @@ DEFAULT_API_BASE="https://api.publichost.cloud"
 NODE_UUID=""
 API_BASE=""
 API_TOKEN=""
+KAMAILIO_RUNTIME_KIT_DIR="${KAMAILIO_RUNTIME_KIT_DIR:-/opt/mnscloud/runtime-kit}"
+KAMAILIO_RUNTIME_KIT_REPO_URL="${KAMAILIO_RUNTIME_KIT_REPO_URL:-https://github.com/manaoscloud/mnscloud-runtime-kit.git}"
+KAMAILIO_RUNTIME_KIT_CHANNEL="${KAMAILIO_RUNTIME_KIT_CHANNEL:-stable}"
+KAMAILIO_RUNTIME_KIT_REF="${KAMAILIO_RUNTIME_KIT_REF:-}"
 
 normalize_url() {
   local value="$1"
@@ -68,6 +72,47 @@ detect_kamailio_os() {
   esac
   err "Unsupported operating system for Kamailio. Supported: Debian 12/13 and Rocky 8/9."
   exit 2
+}
+
+resolve_runtime_kit_ref() {
+  local kit_dir="$1" channel="$2" manifest ref
+  manifest="$(git -C "$kit_dir" show "origin/main:releases/manifest.json" 2>/dev/null)" ||
+    { err "cannot read runtime kit release manifest from origin/main"; return 1; }
+  ref="$(printf '%s\n' "$manifest" | awk -v channel="$channel" '
+    $0 ~ "\"" channel "\"" { in_channel = 1; next }
+    in_channel && /"ref"[[:space:]]*:/ {
+      gsub(/.*"ref"[[:space:]]*:[[:space:]]*"/, "")
+      gsub(/".*/, "")
+      print
+      exit
+    }
+    in_channel && /^[[:space:]]*}/ { in_channel = 0 }
+  ')"
+  [[ "$ref" =~ ^v[0-9]+[.][0-9]+[.][0-9]+([-+][0-9A-Za-z.-]+)?$ ]] ||
+    { err "invalid runtime kit ref for channel ${channel}: ${ref:-empty}"; return 1; }
+  printf '%s\n' "$ref"
+}
+
+load_runtime_kit() {
+  [[ "${KAMAILIO_RUNTIME_KIT_LOADED:-0}" == "1" ]] && return 0
+  command -v git >/dev/null 2>&1 || run "if command -v apt-get >/dev/null 2>&1; then apt-get update -y && apt-get install -y --no-install-recommends ca-certificates git; else dnf install -y ca-certificates git; fi"
+  if [[ -d "${KAMAILIO_RUNTIME_KIT_DIR}/.git" ]]; then
+    run "git -C '${KAMAILIO_RUNTIME_KIT_DIR}' fetch --all --tags --prune"
+  else
+    run "install -d -m 0755 '$(dirname "$KAMAILIO_RUNTIME_KIT_DIR")'"
+    run "git clone '${KAMAILIO_RUNTIME_KIT_REPO_URL}' '${KAMAILIO_RUNTIME_KIT_DIR}'"
+  fi
+  if [[ -z "$KAMAILIO_RUNTIME_KIT_REF" ]]; then
+    KAMAILIO_RUNTIME_KIT_REF="$(resolve_runtime_kit_ref "$KAMAILIO_RUNTIME_KIT_DIR" "$KAMAILIO_RUNTIME_KIT_CHANNEL")"
+    info "Resolved runtime kit ${KAMAILIO_RUNTIME_KIT_CHANNEL} channel to ${KAMAILIO_RUNTIME_KIT_REF}"
+  fi
+  run "git -C '${KAMAILIO_RUNTIME_KIT_DIR}' -c advice.detachedHead=false checkout '${KAMAILIO_RUNTIME_KIT_REF}'"
+  git -C "$KAMAILIO_RUNTIME_KIT_DIR" pull --ff-only origin "$KAMAILIO_RUNTIME_KIT_REF" 2>/dev/null || true
+  [[ -r "${KAMAILIO_RUNTIME_KIT_DIR}/lib/packages.sh" ]] || { err "runtime kit packages library not found"; return 1; }
+  export MNSCLOUD_RUNTIME_KIT_LOG_PREFIX="mnscloud-kamailio/runtime-kit"
+  # shellcheck disable=SC1091
+  source "${KAMAILIO_RUNTIME_KIT_DIR}/lib/packages.sh"
+  KAMAILIO_RUNTIME_KIT_LOADED=1
 }
 
 generate_uuid() {
@@ -178,66 +223,21 @@ bootstrap_node_via_api() {
 }
 
 install_packages_debian() {
-  local codename
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  codename="${VERSION_CODENAME:-}"
-  if [[ -z "${codename}" ]]; then
-    codename="$(. /etc/os-release && echo "${VERSION:-}" | sed -n 's/.*(\([^)]*\)).*/\1/p' | head -n1)"
+  if [[ "$DRY_RUN" == true ]]; then
+    log DRY "load mnscloud-runtime-kit and run mrtk_ensure_kamailio"
+    return 0
   fi
-  case "${codename}" in
-    bookworm|trixie) ;;
-    *)
-      err "Unsupported Debian codename for Kamailio 6.1.x repository: ${codename:-unknown}. Supported: bookworm/trixie."
-      exit 2
-      ;;
-  esac
-  info "Configuring official Kamailio 6.1.x repository for Debian ${codename}..."
-  run "apt-get update -y"
-  run "apt-get install -y --no-install-recommends ca-certificates curl gnupg"
-  run "install -m 0755 -d /usr/share/keyrings"
-  run "rm -f /usr/share/keyrings/kamailio.gpg.tmp"
-  run "curl -fsSL https://deb.kamailio.org/kamailiodebkey.gpg | gpg --dearmor -o /usr/share/keyrings/kamailio.gpg.tmp"
-  run "mv /usr/share/keyrings/kamailio.gpg.tmp /usr/share/keyrings/kamailio.gpg"
-  run "chmod 0644 /usr/share/keyrings/kamailio.gpg"
-  write_file "/etc/apt/sources.list.d/kamailio.list" "deb [signed-by=/usr/share/keyrings/kamailio.gpg] http://deb.kamailio.org/kamailio61 ${codename} main"
-  write_file "/etc/apt/preferences.d/kamailio" "Package: kamailio*
-Pin: origin deb.kamailio.org
-Pin-Priority: 1001
-
-Package: kamcli
-Pin: origin deb.kamailio.org
-Pin-Priority: 1001"
-  run "apt-get update -y"
-  run "apt-get install -y --no-install-recommends kamailio kamailio-extra-modules kamailio-utils-modules kamailio-tls-modules kamailio-json-modules sngrep tcpdump ngrep dnsutils iputils-ping traceroute mtr-tiny netcat-openbsd jq ca-certificates curl"
-  run "kamailio -v | head -n 1"
+  load_runtime_kit
+  MNSCLOUD_KAMAILIO_PACKAGE_PROFILE=core mrtk_ensure_kamailio
 }
 
 install_packages_rocky() {
-  local major
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  major="${VERSION_ID%%.*}"
-  case "${major}" in
-    8|9) ;;
-    *)
-      err "Unsupported Rocky Linux version for Kamailio 6.1.x repository: ${VERSION_ID:-unknown}. Supported: Rocky 8/9."
-      exit 2
-      ;;
-  esac
-  info "Configuring official Kamailio 6.1.x repository for Rocky ${major}..."
-  run "dnf install -y epel-release dnf-plugins-core ca-certificates curl"
-  run "rpm --import https://rpm.kamailio.org/rpm-pub.key"
-  write_file "/etc/yum.repos.d/kamailio.repo" "[kamailio-6.1]
-name=Kamailio 6.1.x official repository
-baseurl=https://rpm.kamailio.org/rocky/${major}/6.1/6.1/\$basearch/
-enabled=1
-gpgcheck=1
-gpgkey=https://rpm.kamailio.org/rpm-pub.key"
-  run "dnf clean all"
-  run "dnf makecache --repo kamailio-6.1"
-  run "dnf install -y kamailio kamailio-utils kamailio-json kamailio-curl sngrep tcpdump ngrep bind-utils iputils traceroute mtr nc jq curl ca-certificates"
-  run "kamailio -v | head -n 1"
+  if [[ "$DRY_RUN" == true ]]; then
+    log DRY "load mnscloud-runtime-kit and run mrtk_ensure_kamailio"
+    return 0
+  fi
+  load_runtime_kit
+  MNSCLOUD_KAMAILIO_PACKAGE_PROFILE=core mrtk_ensure_kamailio
 }
 
 backup_once() {

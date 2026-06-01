@@ -19,6 +19,7 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 - Product/runtime: `mnscloud-kamailio`
 - Project directory: `/opt/mnscloud/mnscloud-kamailio`
 - Installer: `scripts/install-kamailio.sh`
+- Shared package installer: `mnscloud-runtime-kit`
 - Service: `kamailio.service`
 - Local state prefix: `/etc/mnscloud/softswitch`
 - Node UUID: `/etc/mnscloud/softswitch/node.uuid`
