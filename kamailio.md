@@ -2,6 +2,10 @@
 
 Este diretório documenta o uso do Kamailio como camada Softswitch/SIP edge do mnscloud.
 
+Para WebRTC/SIP over WebSocket, certificados WSS por domínio e rtpengine, use o
+conector dedicado `mnscloud-kamailio-webrtc`. Este módulo continua sendo o
+contrato Kamailio/softswitch genérico.
+
 ## Modelo
 
 - O servidor físico mantém a URL base da API em `/etc/mnscloud/softswitch/api.base`.

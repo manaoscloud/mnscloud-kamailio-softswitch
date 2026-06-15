@@ -27,6 +27,8 @@ monorepo at runtime.
 - Local installer: `scripts/install-kamailio.sh`
 - Runtime API consumer: MNSCloud Softswitch Kamailio endpoints under `/api/v1/softswitch/kamailio/*`
 - Local state prefix: `/etc/mnscloud/softswitch`
+- WebRTC SIP/WSS and rtpengine media anchoring are not owned by this generic
+  connector; use `mnscloud-kamailio-webrtc` for that realtime edge contract.
 
 ## Checklist
 

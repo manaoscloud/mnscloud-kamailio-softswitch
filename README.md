@@ -13,6 +13,9 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
   policy, and secret resolution.
 - Do not commit secrets, customer data, production infrastructure values, provider credentials, or
   private business rules.
+- This repository is the generic Kamailio softswitch/SIP connector. WebRTC SIP
+  over WebSocket, local WebRTC TLS termination, and rtpengine media anchoring
+  belong to `mnscloud-kamailio-webrtc`.
 
 ## Contract
 

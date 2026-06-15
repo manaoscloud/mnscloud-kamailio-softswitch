@@ -23,6 +23,10 @@ business rules.
 Authorization, tenant scope, billing, routing ownership, policy decisions, and secret resolution must
 remain in the MNSCloud API/control plane.
 
+This repository is the generic Kamailio softswitch connector. WebRTC SIP/WSS,
+WebRTC domain TLS termination, and rtpengine media anchoring belong to
+`mnscloud-kamailio-webrtc`.
+
 ## Paid Contributions
 
 MNSCloud may choose to pay, sponsor, contract, or hire contributors whose work demonstrates strong
