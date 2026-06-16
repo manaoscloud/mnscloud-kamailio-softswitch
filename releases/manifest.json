@@ -1,0 +1,12 @@
+{
+  "product": "mnscloud-kamailio",
+  "repository": "manaoscloud/mnscloud-kamailio",
+  "channels": {
+    "stable": {
+      "version": "0.1.1",
+      "ref": "v0.1.1",
+      "releasedAt": "2026-06-16T20:20:39Z",
+      "minimumVersion": "0.1.0"
+    }
+  }
+}
