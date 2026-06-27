@@ -11,6 +11,7 @@ NODE_UUID_FILE="/etc/mnscloud/softswitch/node.uuid"
 API_TOKEN_FILE="/etc/mnscloud/softswitch/api.token"
 API_BASE_FILE="/etc/mnscloud/softswitch/api.base"
 DEFAULT_API_BASE="${MNSCLOUD_API_BASE:-https://api.example.com}"
+SOFTSWITCH_ENGINE="${SOFTSWITCH_ENGINE:-kamailio}"
 NODE_UUID=""
 API_BASE=""
 API_TOKEN=""
@@ -202,16 +203,16 @@ bootstrap_node_via_api() {
   hostname_value="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
   private_ip="$(private_ipv4)"
   public_ip="$(public_ipv4)"
-  payload="{\"hostname\":\"$(json_escape "${hostname_value}")\""
+  payload="{\"engine\":\"$(json_escape "${SOFTSWITCH_ENGINE}")\",\"hostname\":\"$(json_escape "${hostname_value}")\""
   [[ -n "${private_ip}" ]] && payload+=",\"privateIP\":\"$(json_escape "${private_ip}")\""
   [[ -n "${public_ip}" ]] && payload+=",\"publicIP\":\"$(json_escape "${public_ip}")\""
   payload+="}"
   if [[ "$DRY_RUN" == true ]]; then
-    log DRY "POST ${API_BASE}/api/v1/softswitch/kamailio/bootstrap?node_uuid=${NODE_UUID} with local token ${API_TOKEN_FILE}"
+    log DRY "POST ${API_BASE}/api/v1/softswitch/runtime/bootstrap?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE} with local token ${API_TOKEN_FILE}"
     return 0
   fi
   response_file="$(mktemp)"
-  http_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST "${API_BASE}/api/v1/softswitch/kamailio/bootstrap?node_uuid=${NODE_UUID}" -H "Content-Type: application/json" -H "Authorization: Bearer ${API_TOKEN}" --data "${payload}" 2>>"${LOG_FILE}")"
+  http_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST "${API_BASE}/api/v1/softswitch/runtime/bootstrap?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}" -H "Content-Type: application/json" -H "Authorization: Bearer ${API_TOKEN}" -H "X-Softswitch-Engine: ${SOFTSWITCH_ENGINE}" --data "${payload}" 2>>"${LOG_FILE}")"
   server_uuid="$(json_field "serverUUID" "${response_file}")"
   rm -f "${response_file}"
   if [[ "${http_code}" == "200" ]]; then
@@ -283,9 +284,9 @@ modparam(\"auth\", \"qop\", \"auth\")
 modparam(\"http_client\", \"query_result\", 0)
 
 route[AUTH_LOOKUP] {
-  \$var(auth_url) = \"${API_BASE}/api/v1/softswitch/kamailio/auth?node_uuid=${NODE_UUID}\";
-  \$var(auth_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
-  \$var(auth_body) = \"{\\\"username\\\":\\\"\" + \$fU + \"\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\"}\";
+  \$var(auth_url) = \"${API_BASE}/api/v1/softswitch/runtime/auth?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}\";
+  \$var(auth_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\\r\\nX-Softswitch-Engine: ${SOFTSWITCH_ENGINE}\";
+  \$var(auth_body) = \"{\\\"engine\\\":\\\"${SOFTSWITCH_ENGINE}\\\",\\\"username\\\":\\\"\" + \$fU + \"\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\"}\";
   \$var(auth_reply) = \"\";
 
   if (!http_client_query(\$var(auth_url), \$var(auth_body), \$var(auth_headers), \$var(auth_reply))) {
@@ -341,9 +342,9 @@ route[PROXY_AUTH] {
 }
 
 route[API_ROUTE] {
-  \$var(route_url) = \"${API_BASE}/api/v1/softswitch/kamailio/route?node_uuid=${NODE_UUID}\";
-  \$var(route_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
-  \$var(route_body) = \"{\\\"direction\\\":\\\"outbound\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\",\\\"sourceUsername\\\":\\\"\" + \$fU + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\"}\";
+  \$var(route_url) = \"${API_BASE}/api/v1/softswitch/runtime/route?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}\";
+  \$var(route_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\\r\\nX-Softswitch-Engine: ${SOFTSWITCH_ENGINE}\";
+  \$var(route_body) = \"{\\\"engine\\\":\\\"${SOFTSWITCH_ENGINE}\\\",\\\"direction\\\":\\\"outbound\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\",\\\"sourceUsername\\\":\\\"\" + \$fU + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\"}\";
   \$var(route_reply) = \"\";
 
   if (!http_client_query(\$var(route_url), \$var(route_body), \$var(route_headers), \$var(route_reply))) {
@@ -382,9 +383,9 @@ route[API_ROUTE] {
 }
 
 route[INBOUND_ROUTE] {
-  \$var(inbound_url) = \"${API_BASE}/api/v1/softswitch/kamailio/route?node_uuid=${NODE_UUID}\";
-  \$var(inbound_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
-  \$var(inbound_body) = \"{\\\"direction\\\":\\\"inbound\\\",\\\"sourceIP\\\":\\\"\" + \$si + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\",\\\"domain\\\":\\\"\" + \$rd + \"\\\"}\";
+  \$var(inbound_url) = \"${API_BASE}/api/v1/softswitch/runtime/route?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}\";
+  \$var(inbound_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\\r\\nX-Softswitch-Engine: ${SOFTSWITCH_ENGINE}\";
+  \$var(inbound_body) = \"{\\\"engine\\\":\\\"${SOFTSWITCH_ENGINE}\\\",\\\"direction\\\":\\\"inbound\\\",\\\"sourceIP\\\":\\\"\" + \$si + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\",\\\"domain\\\":\\\"\" + \$rd + \"\\\"}\";
   \$var(inbound_reply) = \"\";
 
   if (!http_client_query(\$var(inbound_url), \$var(inbound_body), \$var(inbound_headers), \$var(inbound_reply))) {

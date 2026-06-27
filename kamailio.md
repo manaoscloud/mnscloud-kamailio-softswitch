@@ -13,7 +13,8 @@ contrato Kamailio/softswitch genérico.
 - O servidor físico mantém token local em `/etc/mnscloud/softswitch/api.token`.
 - Esse UUID é vinculado ao cadastro `VoipSoftswitchServer.VsrNodeUUID`.
 - O hash do token é salvo em `VoipSoftswitchServer.VsrApiTokenHash`.
-- Cada requisição runtime enviada ao mnscloud usa `node_uuid` e `Authorization: Bearer <token>` para validar o servidor.
+- Cada requisição runtime enviada ao mnscloud usa `engine`, `node_uuid` e
+  `Authorization: Bearer <token>` para validar o servidor.
 - A API usa cache curto para a identidade do servidor, reduzindo IO por chamada sem perder revogação operacional.
 
 ## Cadastros
@@ -26,15 +27,17 @@ contrato Kamailio/softswitch genérico.
 
 Os endpoints internos ficam em:
 
-- `POST /api/v1/softswitch/kamailio/heartbeat`
-- `POST /api/v1/softswitch/kamailio/bootstrap`
-- `POST /api/v1/softswitch/kamailio/auth`
-- `POST /api/v1/softswitch/kamailio/route`
-- `POST /api/v1/softswitch/kamailio/accounting`
+- `POST /api/v1/softswitch/runtime/heartbeat`
+- `POST /api/v1/softswitch/runtime/bootstrap`
+- `POST /api/v1/softswitch/runtime/auth`
+- `POST /api/v1/softswitch/runtime/route`
+- `POST /api/v1/softswitch/runtime/accounting`
 
-O `node_uuid` pode ir via query string ou header `X-Softswitch-Node-UUID`. O token é
-gerado pelo instalador, enviado como `Authorization: Bearer <token>` no bootstrap e
-nas consultas runtime, e somente o hash fica salvo no banco.
+O `engine` deve ser enviado como `kamailio` via body, query string ou header
+`X-Softswitch-Engine`. O `node_uuid` pode ir via query string ou header
+`X-Softswitch-Node-UUID`. O token é gerado pelo instalador, enviado como
+`Authorization: Bearer <token>` no bootstrap e nas consultas runtime, e somente o
+hash fica salvo no banco.
 
 ## Instalação
 
@@ -65,9 +68,9 @@ O instalador:
 O arquivo gerado usa `http_client` para chamadas runtime síncronas de baixa latência contra a API.
 REGISTER e INVITE de assinantes são fail-closed: se a API não autorizar ou se o digest SIP falhar, a
 requisição é negada. Chamadas locais usam `lookup("location")`; chamadas de saída usam o contrato
-`/api/v1/softswitch/kamailio/route`.
+`/api/v1/softswitch/runtime/route`.
 
-Inbound por trunk/IP também usa `/api/v1/softswitch/kamailio/route`, com `direction=inbound`,
+Inbound por trunk/IP também usa `/api/v1/softswitch/runtime/route`, com `direction=inbound`,
 `sourceIP` e DID discado. A API só devolve rota quando:
 
 - o trunk vinculado ao softswitch tem `trustedCidrs` preenchido;
@@ -104,8 +107,9 @@ Para validar o endpoint:
 NODE_UUID="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/node.uuid)"
 API_TOKEN="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/api.token)"
 API_BASE="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/api.base)"
-curl -sS -X POST "${API_BASE}/api/v1/softswitch/kamailio/heartbeat?node_uuid=${NODE_UUID}" \
+curl -sS -X POST "${API_BASE}/api/v1/softswitch/runtime/heartbeat?node_uuid=${NODE_UUID}&engine=kamailio" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_TOKEN}" \
-  --data '{"hostname":"pabx-dev1"}'
+  -H "X-Softswitch-Engine: kamailio" \
+  --data '{"engine":"kamailio","hostname":"softswitch-dev1"}'
 ```
