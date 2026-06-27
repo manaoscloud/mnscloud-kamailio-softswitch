@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 NODE_UUID_FILE="/etc/mnscloud/softswitch/node.uuid"
 API_TOKEN_FILE="/etc/mnscloud/softswitch/api.token"
 API_BASE_FILE="/etc/mnscloud/softswitch/api.base"
-DEFAULT_API_BASE="https://api.publichost.cloud"
+DEFAULT_API_BASE="${MNSCLOUD_API_BASE:-https://api.example.com}"
 NODE_UUID=""
 API_BASE=""
 API_TOKEN=""
@@ -251,8 +251,6 @@ write_kamailio_config() {
   local cfg="/etc/kamailio/kamailio.cfg"
   backup_once "$cfg"
   write_file "$cfg" "#!KAMAILIO
-#!define WITH_AUTH
-#!define WITH_USRLOCDB
 
 listen=udp:0.0.0.0:5060
 listen=tcp:0.0.0.0:5060
@@ -268,47 +266,155 @@ loadmodule \"textops.so\"
 loadmodule \"siputils.so\"
 loadmodule \"xlog.so\"
 loadmodule \"pv.so\"
+loadmodule \"auth.so\"
+loadmodule \"registrar.so\"
+loadmodule \"usrloc.so\"
 loadmodule \"jsonrpcs.so\"
 loadmodule \"kex.so\"
 loadmodule \"corex.so\"
 loadmodule \"ctl.so\"
-loadmodule \"htable.so\"
-loadmodule \"http_async_client.so\"
+loadmodule \"http_client.so\"
 loadmodule \"jansson.so\"
 
-modparam(\"http_async_client\", \"workers\", 4)
-modparam(\"htable\", \"htable\", \"auth_cache=>size=12;autoexpire=60\")
+modparam(\"usrloc\", \"db_mode\", 0)
+modparam(\"registrar\", \"max_contacts\", 1)
+modparam(\"auth\", \"nonce_expire\", 300)
+modparam(\"auth\", \"qop\", \"auth\")
+modparam(\"http_client\", \"query_result\", 0)
+
+route[AUTH_LOOKUP] {
+  \$var(auth_url) = \"${API_BASE}/api/v1/softswitch/kamailio/auth?node_uuid=${NODE_UUID}\";
+  \$var(auth_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
+  \$var(auth_body) = \"{\\\"username\\\":\\\"\" + \$fU + \"\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\"}\";
+  \$var(auth_reply) = \"\";
+
+  if (!http_client_query(\$var(auth_url), \$var(auth_body), \$var(auth_headers), \$var(auth_reply))) {
+    xlog(\"L_ERR\", \"MNSCloud auth API request failed for \$fU@\$fd\\n\");
+    return(-1);
+  }
+
+  if (\$var(auth_reply) !~ \"\\\"authorized\\\"[[:space:]]*:[[:space:]]*true\") {
+    xlog(\"L_WARN\", \"MNSCloud denied subscriber \$fU@\$fd\\n\");
+    return(-2);
+  }
+
+  if (!jansson_get(\"data.password\", \"\$var(auth_reply)\", \"\$var(auth_password)\")) {
+    xlog(\"L_ERR\", \"MNSCloud auth response missing password for \$fU@\$fd\\n\");
+    return(-3);
+  }
+
+  if (jansson_get(\"data.accountUUID\", \"\$var(auth_reply)\", \"\$avp(account_uuid)\")) {}
+  if (jansson_get(\"data.subscriberUUID\", \"\$var(auth_reply)\", \"\$avp(subscriber_uuid)\")) {}
+  return(1);
+}
+
+route[REGISTER_AUTH] {
+  route(AUTH_LOOKUP);
+  if (\$rc < 0) {
+    sl_send_reply(\"403\", \"Forbidden\");
+    exit;
+  }
+
+  if (!pv_www_authenticate(\"\$fd\", \"\$var(auth_password)\", \"0\")) {
+    www_challenge(\"\$fd\", \"1\");
+    exit;
+  }
+
+  consume_credentials();
+  return(1);
+}
+
+route[PROXY_AUTH] {
+  route(AUTH_LOOKUP);
+  if (\$rc < 0) {
+    sl_send_reply(\"403\", \"Forbidden\");
+    exit;
+  }
+
+  if (!pv_proxy_authenticate(\"\$fd\", \"\$var(auth_password)\", \"0\")) {
+    proxy_challenge(\"\$fd\", \"1\");
+    exit;
+  }
+
+  consume_credentials();
+  return(1);
+}
+
+route[API_ROUTE] {
+  \$var(route_url) = \"${API_BASE}/api/v1/softswitch/kamailio/route?node_uuid=${NODE_UUID}\";
+  \$var(route_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
+  \$var(route_body) = \"{\\\"direction\\\":\\\"outbound\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\",\\\"sourceUsername\\\":\\\"\" + \$fU + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\"}\";
+  \$var(route_reply) = \"\";
+
+  if (!http_client_query(\$var(route_url), \$var(route_body), \$var(route_headers), \$var(route_reply))) {
+    xlog(\"L_ERR\", \"MNSCloud route API request failed for \$fU -> \$rU\\n\");
+    sl_send_reply(\"503\", \"Routing Unavailable\");
+    exit;
+  }
+
+  if (\$var(route_reply) !~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\") {
+    sl_send_reply(\"404\", \"No Route\");
+    exit;
+  }
+
+  if (!jansson_get(\"data.host\", \"\$var(route_reply)\", \"\$var(route_host)\")) {
+    sl_send_reply(\"503\", \"Invalid Route\");
+    exit;
+  }
+  if (!jansson_get(\"data.port\", \"\$var(route_reply)\", \"\$var(route_port)\")) {
+    \$var(route_port) = \"5060\";
+  }
+  if (!jansson_get(\"data.transport\", \"\$var(route_reply)\", \"\$var(route_transport)\")) {
+    \$var(route_transport) = \"udp\";
+  }
+  if (!jansson_get(\"data.destination\", \"\$var(route_reply)\", \"\$var(route_destination)\")) {
+    \$var(route_destination) = \$rU;
+  }
+  if (jansson_get(\"data.accountUUID\", \"\$var(route_reply)\", \"\$avp(account_uuid)\")) {}
+  if (jansson_get(\"data.subscriberUUID\", \"\$var(route_reply)\", \"\$avp(subscriber_uuid)\")) {}
+  if (jansson_get(\"data.trunkUUID\", \"\$var(route_reply)\", \"\$avp(trunk_uuid)\")) {}
+  if (jansson_get(\"data.routeUUID\", \"\$var(route_reply)\", \"\$avp(route_uuid)\")) {}
+  if (jansson_get(\"data.rateUUID\", \"\$var(route_reply)\", \"\$avp(rate_uuid)\")) {}
+
+  \$ru = \"sip:\" + \$var(route_destination) + \"@\" + \$var(route_host) + \":\" + \$var(route_port);
+  \$du = \"sip:\" + \$var(route_host) + \":\" + \$var(route_port) + \";transport=\" + \$var(route_transport);
+  return(1);
+}
 
 request_route {
   if (!mf_process_maxfwd_header(\"10\")) { sl_send_reply(\"483\", \"Too Many Hops\"); exit; }
   if (is_method(\"OPTIONS\")) { sl_send_reply(\"200\", \"OK\"); exit; }
 
-  if (is_method(\"REGISTER\")) {
-    \$var(auth_url) = \"${API_BASE}/api/v1/softswitch/kamailio/auth?node_uuid=${NODE_UUID}\";
-    \$var(auth_body) = \"{\\\"username\\\":\\\"\" + \$fU + \"\\\",\\\"domain\\\":\\\"\" + \$fd + \"\\\"}\";
-    xlog(\"L_INFO\", \"Kamailio auth lookup for \$fU@\$fd via MNSCloud\\n\");
-    if (!t_newtran()) { sl_reply_error(); exit; }
-    \$http_req(all) = \$null;
-    \$http_req(method) = \"POST\";
-    \$http_req(hdr) = \"Content-Type: application/json\";
-    \$http_req(hdr) = \"Authorization: Bearer ${API_TOKEN}\";
-    \$http_req(body) = \$var(auth_body);
-    http_async_query(\"\$var(auth_url)\", \"AUTH_REPLY\");
+  if (has_totag()) {
+    if (!loose_route()) {
+      sl_send_reply(\"404\", \"Not Here\");
+      exit;
+    }
+    if (!t_relay()) { sl_reply_error(); }
     exit;
   }
 
-  if (!t_relay()) { sl_reply_error(); }
-  exit;
-}
+  if (is_method(\"REGISTER\")) {
+    route(REGISTER_AUTH);
+    if (!save(\"location\")) { sl_reply_error(); }
+    exit;
+  }
 
-route[AUTH_REPLY] {
-  if (\$http_ok && \$http_rs == 200) {
-    if (\$http_rb =~ \"\\\"authorized\\\":true\") {
-      t_reply(\"200\", \"OK\");
+  if (is_method(\"INVITE\")) {
+    route(PROXY_AUTH);
+    record_route();
+
+    if (lookup(\"location\")) {
+      if (!t_relay()) { sl_reply_error(); }
       exit;
     }
+
+    route(API_ROUTE);
+    if (!t_relay()) { sl_reply_error(); }
+    exit;
   }
-  t_reply(\"403\", \"Forbidden\");
+
+  sl_send_reply(\"405\", \"Method Not Allowed\");
   exit;
 }
 "

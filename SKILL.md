@@ -25,6 +25,9 @@ monorepo at runtime.
 
 - Product repository: `manaoscloud/mnscloud-kamailio-softswitch`
 - Local installer: `scripts/install-kamailio-softswitch.sh`
+- Lifecycle scripts: `scripts/validate-kamailio-softswitch.sh`,
+  `scripts/update-kamailio-softswitch.sh`, `scripts/update-latest-kamailio-softswitch.sh`, and
+  `scripts/rollback-kamailio-softswitch.sh`
 - Runtime API consumer: MNSCloud Softswitch Kamailio endpoints under `/api/v1/softswitch/kamailio/*`
 - Local state prefix: `/etc/mnscloud/softswitch`
 - WebRTC SIP/WSS and rtpengine media anchoring are not owned by this generic
@@ -32,7 +35,10 @@ monorepo at runtime.
 
 ## Checklist
 
-- Validate `scripts/install-kamailio-softswitch.sh` with `bash -n`.
+- Validate all shell scripts with `bash -n scripts/*.sh`.
+- Keep REGISTER and subscriber-originated INVITE authentication fail-closed with SIP digest.
+- Do not enable inbound trunk/IP routing in the public connector without an API-owned trusted source
+  and policy contract.
 - Search the module for sensitive values before publishing.
 - Keep all required installer helpers inside this repository.
 - Keep the module consuming API contracts only.

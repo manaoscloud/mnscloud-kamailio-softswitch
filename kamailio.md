@@ -57,12 +57,28 @@ O instalador:
 - tenta vincular o node UUID via API bootstrap usando hostname, IPv4 privado e IPv4 público descoberto;
 - não executa SQL direto nem instala cliente MariaDB para vincular o node UUID;
 - faz backup do `/etc/kamailio/kamailio.cfg` original como `.bkp`;
-- gera um `kamailio.cfg` mínimo para consulta HTTP ao mnscloud.
+- gera um `kamailio.cfg` com autenticação SIP digest para REGISTER e INVITE de assinantes;
+- salva contatos com `registrar/usrloc` em memória local;
+- consulta `/route` na API para chamadas de saída quando o destino não está registrado localmente.
 - grava o Bearer token local no `kamailio.cfg` para autenticar as chamadas runtime contra a API.
 
-O arquivo gerado usa `http_async_client` no padrão Kamailio 6.1: `http_async_query(url, route_name)`.
-Quando houver corpo POST, o instalador configura `$http_req(method)`, `$http_req(hdr)` e `$http_req(body)` antes da chamada.
-O `tm.so` é carregado antes dos módulos que dependem de transação, como `sl.so` e `http_async_client.so`.
+O arquivo gerado usa `http_client` para chamadas runtime síncronas de baixa latência contra a API.
+REGISTER e INVITE de assinantes são fail-closed: se a API não autorizar ou se o digest SIP falhar, a
+requisição é negada. Chamadas locais usam `lookup("location")`; chamadas de saída usam o contrato
+`/api/v1/softswitch/kamailio/route`.
+
+Inbound por trunk/IP ainda não é habilitado automaticamente por este conector. Esse caminho precisa
+de contrato explícito de trusted source e policy no API/control plane antes de aceitar chamadas sem
+digest de assinante.
+
+## Lifecycle
+
+```bash
+bash scripts/validate-kamailio-softswitch.sh
+bash scripts/update-kamailio-softswitch.sh --ref v0.1.1
+bash scripts/update-latest-kamailio-softswitch.sh stable
+bash scripts/rollback-kamailio-softswitch.sh
+```
 
 ## Troubleshooting
 
@@ -81,7 +97,8 @@ Para validar o endpoint:
 ```bash
 NODE_UUID="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/node.uuid)"
 API_TOKEN="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/api.token)"
-curl -sS -X POST "https://dev1.publichost.cloud/api/v1/softswitch/kamailio/heartbeat?node_uuid=${NODE_UUID}" \
+API_BASE="$(tr -d '[:space:]' < /etc/mnscloud/softswitch/api.base)"
+curl -sS -X POST "${API_BASE}/api/v1/softswitch/kamailio/heartbeat?node_uuid=${NODE_UUID}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_TOKEN}" \
   --data '{"hostname":"pabx-dev1"}'

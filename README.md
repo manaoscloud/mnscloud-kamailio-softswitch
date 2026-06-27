@@ -22,6 +22,10 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 - Product/runtime: `mnscloud-kamailio-softswitch`
 - Project directory: `/opt/mnscloud/mnscloud-kamailio-softswitch`
 - Installer: `scripts/install-kamailio-softswitch.sh`
+- Validator: `scripts/validate-kamailio-softswitch.sh`
+- Update by ref: `scripts/update-kamailio-softswitch.sh --ref <git-ref>`
+- Update channel: `scripts/update-latest-kamailio-softswitch.sh [stable]`
+- Rollback local Kamailio cfg: `scripts/rollback-kamailio-softswitch.sh`
 - Shared package installer: `mnscloud-runtime-kit`
 - Service: `kamailio.service`
 - Local state prefix: `/etc/mnscloud/softswitch`
@@ -53,3 +57,14 @@ sudo bash scripts/install-kamailio-softswitch.sh
 ```
 
 See `kamailio.md` and `SECURITY.md` for details.
+
+## Runtime Behavior
+
+- SIP REGISTER is authorized by the MNSCloud runtime API and then validated with real SIP digest
+  authentication before the contact is saved locally.
+- SIP INVITE from subscribers is also proxy-authenticated before local lookup or outbound routing.
+- Local subscriber-to-subscriber calls use Kamailio `usrloc` after authentication.
+- Outbound calls use `/api/v1/softswitch/kamailio/route`; the API remains responsible for tenant,
+  policy, ownership, and route selection.
+- Inbound trunk/IP authentication is intentionally not opened by this connector until the API/DB
+  contract defines trusted source matching and policy enforcement for trunks.
