@@ -1,6 +1,6 @@
 {
-  "product": "mnscloud-kamailio",
-  "repository": "manaoscloud/mnscloud-kamailio",
+  "product": "mnscloud-kamailio-softswitch",
+  "repository": "manaoscloud/mnscloud-kamailio-softswitch",
   "channels": {
     "stable": {
       "version": "0.1.1",

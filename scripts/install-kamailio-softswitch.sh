@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG_PREFIX="[install-kamailio]"
+LOG_PREFIX="[install-kamailio-softswitch]"
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib/install-base.sh" "$@"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -109,7 +109,7 @@ load_runtime_kit() {
   run "git -C '${KAMAILIO_RUNTIME_KIT_DIR}' -c advice.detachedHead=false checkout '${KAMAILIO_RUNTIME_KIT_REF}'"
   git -C "$KAMAILIO_RUNTIME_KIT_DIR" pull --ff-only origin "$KAMAILIO_RUNTIME_KIT_REF" 2>/dev/null || true
   [[ -r "${KAMAILIO_RUNTIME_KIT_DIR}/lib/packages.sh" ]] || { err "runtime kit packages library not found"; return 1; }
-  export MNSCLOUD_RUNTIME_KIT_LOG_PREFIX="mnscloud-kamailio/runtime-kit"
+  export MNSCLOUD_RUNTIME_KIT_LOG_PREFIX="mnscloud-kamailio-softswitch/runtime-kit"
   # shellcheck disable=SC1091
   source "${KAMAILIO_RUNTIME_KIT_DIR}/lib/packages.sh"
   KAMAILIO_RUNTIME_KIT_LOADED=1

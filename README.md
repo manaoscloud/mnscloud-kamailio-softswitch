@@ -1,6 +1,6 @@
-# MNSCloud Kamailio
+# MNSCloud Kamailio Softswitch
 
-Public standalone Kamailio edge connector for MNSCloud.
+Public standalone Kamailio softswitch connector for MNSCloud.
 
 This repository installs and configures local Kamailio runtime assets that consume the MNSCloud API
 contract. It can run on MNSCloud, customer, or partner infrastructure.
@@ -19,9 +19,9 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 
 ## Contract
 
-- Product/runtime: `mnscloud-kamailio`
-- Project directory: `/opt/mnscloud/mnscloud-kamailio`
-- Installer: `scripts/install-kamailio.sh`
+- Product/runtime: `mnscloud-kamailio-softswitch`
+- Project directory: `/opt/mnscloud/mnscloud-kamailio-softswitch`
+- Installer: `scripts/install-kamailio-softswitch.sh`
 - Shared package installer: `mnscloud-runtime-kit`
 - Service: `kamailio.service`
 - Local state prefix: `/etc/mnscloud/softswitch`
@@ -47,9 +47,9 @@ Clone the private repository and install:
 ```bash
 sudo install -d -m 0755 /opt/mnscloud
 cd /opt/mnscloud
-gh repo clone manaoscloud/mnscloud-kamailio
-cd /opt/mnscloud/mnscloud-kamailio
-sudo bash scripts/install-kamailio.sh
+gh repo clone manaoscloud/mnscloud-kamailio-softswitch
+cd /opt/mnscloud/mnscloud-kamailio-softswitch
+sudo bash scripts/install-kamailio-softswitch.sh
 ```
 
 See `kamailio.md` and `SECURITY.md` for details.

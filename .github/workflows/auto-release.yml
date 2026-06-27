@@ -21,7 +21,7 @@ jobs:
   release:
     uses: manaoscloud/mnscloud-runtime-kit/.github/workflows/auto-release.yml@main
     with:
-      release_script: scripts/release-kamailio.sh
+      release_script: scripts/release-kamailio-softswitch.sh
       version: ${{ github.event.inputs.version || '' }}
       setup_deno: true
       checkout_runtime_kit: true

@@ -1,6 +1,6 @@
 # MNSCloud Kamailio Connector Skill
 
-Use this contract when changing the `kamailio/` module or publishing `manaoscloud/mnscloud-kamailio`.
+Use this contract when changing the `kamailio/` module or publishing `manaoscloud/mnscloud-kamailio-softswitch`.
 
 ## Public Repository Boundary
 
@@ -23,8 +23,8 @@ monorepo at runtime.
 
 ## Contract
 
-- Product repository: `manaoscloud/mnscloud-kamailio`
-- Local installer: `scripts/install-kamailio.sh`
+- Product repository: `manaoscloud/mnscloud-kamailio-softswitch`
+- Local installer: `scripts/install-kamailio-softswitch.sh`
 - Runtime API consumer: MNSCloud Softswitch Kamailio endpoints under `/api/v1/softswitch/kamailio/*`
 - Local state prefix: `/etc/mnscloud/softswitch`
 - WebRTC SIP/WSS and rtpengine media anchoring are not owned by this generic
@@ -32,7 +32,7 @@ monorepo at runtime.
 
 ## Checklist
 
-- Validate `scripts/install-kamailio.sh` with `bash -n`.
+- Validate `scripts/install-kamailio-softswitch.sh` with `bash -n`.
 - Search the module for sensitive values before publishing.
 - Keep all required installer helpers inside this repository.
 - Keep the module consuming API contracts only.

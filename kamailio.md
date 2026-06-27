@@ -41,7 +41,7 @@ nas consultas runtime, e somente o hash fica salvo no banco.
 Execute:
 
 ```bash
-bash scripts/install-kamailio.sh
+bash scripts/install-kamailio-softswitch.sh
 ```
 
 O instalador:

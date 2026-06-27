@@ -20,7 +20,7 @@ find_runtime_kit() {
 
 cd "$ROOT_DIR"
 RUNTIME_KIT_DIR="$(find_runtime_kit)" || {
-  printf '[mnscloud-kamailio] ERROR: mnscloud-runtime-kit lib/release.sh not found\n' >&2
+  printf '[mnscloud-kamailio-softswitch] ERROR: mnscloud-runtime-kit lib/release.sh not found\n' >&2
   exit 1
 }
 
@@ -28,8 +28,8 @@ RUNTIME_KIT_DIR="$(find_runtime_kit)" || {
 source "${RUNTIME_KIT_DIR}/lib/release.sh"
 
 mrtk_release_prepare \
-  --product mnscloud-kamailio \
-  --repository manaoscloud/mnscloud-kamailio \
+  --product mnscloud-kamailio-softswitch \
+  --repository manaoscloud/mnscloud-kamailio-softswitch \
   --minimum-version 0.1.0 \
   --validate 'bash -n scripts/*.sh' \
   "$@"
