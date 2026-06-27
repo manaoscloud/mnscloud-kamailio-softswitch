@@ -34,6 +34,22 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 - API base URL: `/etc/mnscloud/softswitch/api.base`
 - Kamailio config: `/etc/kamailio/kamailio.cfg`
 - Config validation: `kamailio -c -f /etc/kamailio/kamailio.cfg`
+- Runtime API: `/api/v1/softswitch/runtime/*`
+- Runtime engine: `kamailio`
+
+The API/control plane must be deployed with the canonical softswitch runtime contract before this
+connector is installed or updated. This connector does not call engine-specific legacy runtime
+endpoints.
+
+## Requirements
+
+- Debian 12/13 or Rocky Linux 8/9.
+- Root privileges for package installation, `/etc/kamailio`, systemd, and `/etc/mnscloud`.
+- Network reachability from the Kamailio host to the MNSCloud API base URL.
+- A `VoipSoftswitchServer` record in the API/control plane for this runtime, with engine
+  `kamailio` and a matching `VsrNodeUUID`, or an operational bootstrap flow that can bind the local
+  node UUID.
+- SIP firewall rules opened according to the deployment model, typically `5060/udp` and `5060/tcp`.
 
 ## Install
 
@@ -55,6 +71,55 @@ gh repo clone manaoscloud/mnscloud-kamailio-softswitch
 cd /opt/mnscloud/mnscloud-kamailio-softswitch
 sudo bash scripts/install-kamailio-softswitch.sh
 ```
+
+For a no-change preview:
+
+```bash
+sudo bash scripts/install-kamailio-softswitch.sh --dry-run
+```
+
+The installer creates or reuses `/etc/mnscloud/softswitch/node.uuid`,
+`/etc/mnscloud/softswitch/api.token`, and `/etc/mnscloud/softswitch/api.base`, writes the Kamailio
+configuration, validates bootstrap against the API when possible, and keeps the original
+`/etc/kamailio/kamailio.cfg` as `/etc/kamailio/kamailio.cfg.bkp`.
+
+## Validate
+
+```bash
+sudo bash scripts/validate-kamailio-softswitch.sh
+sudo kamailio -c -f /etc/kamailio/kamailio.cfg
+sudo systemctl status kamailio
+```
+
+The validator checks shell syntax and, when Kamailio is installed, validates the active Kamailio
+configuration.
+
+## Update
+
+Update to an explicit release, branch, tag, or commit:
+
+```bash
+sudo bash scripts/update-kamailio-softswitch.sh --ref v0.1.5
+```
+
+Update to the release manifest channel, defaulting to `stable`:
+
+```bash
+sudo bash scripts/update-latest-kamailio-softswitch.sh stable
+```
+
+Both update flows fetch the repository, checkout the target ref, rerun the installer, and then run
+the validator. Existing local state under `/etc/mnscloud/softswitch` is reused.
+
+## Rollback
+
+```bash
+sudo bash scripts/rollback-kamailio-softswitch.sh
+```
+
+Rollback restores `/etc/kamailio/kamailio.cfg.bkp`, validates the restored config, and restarts
+`kamailio.service`. It is a local Kamailio configuration rollback; API/control-plane records and
+repository refs are not changed.
 
 See `kamailio.md` and `SECURITY.md` for details.
 

@@ -41,10 +41,26 @@ hash fica salvo no banco.
 
 ## Instalação
 
+Antes de instalar, confirme:
+
+- o API/control plane já está publicado com o contrato canônico `/api/v1/softswitch/runtime/*`;
+- o canal `stable` do repositório aponta para uma versão que usa esse contrato;
+- existe cadastro `VoipSoftswitchServer` para este runtime com engine `kamailio` e `VsrNodeUUID`
+  compatível, ou o fluxo operacional de bootstrap está preparado para vincular o node UUID local;
+- o host consegue acessar a URL base da API;
+- as portas SIP necessárias estão liberadas no firewall do host, normalmente `5060/udp` e
+  `5060/tcp`.
+
 Execute:
 
 ```bash
-bash scripts/install-kamailio-softswitch.sh
+sudo bash scripts/install-kamailio-softswitch.sh
+```
+
+Para pré-visualizar sem aplicar mudanças:
+
+```bash
+sudo bash scripts/install-kamailio-softswitch.sh --dry-run
 ```
 
 O instalador:
@@ -82,12 +98,38 @@ Sem esses requisitos, o conector continua fail-closed e não aceita a chamada in
 
 ## Lifecycle
 
+Validação:
+
 ```bash
-bash scripts/validate-kamailio-softswitch.sh
-bash scripts/update-kamailio-softswitch.sh --ref v0.1.1
-bash scripts/update-latest-kamailio-softswitch.sh stable
-bash scripts/rollback-kamailio-softswitch.sh
+sudo bash scripts/validate-kamailio-softswitch.sh
+sudo kamailio -c -f /etc/kamailio/kamailio.cfg
+sudo systemctl status kamailio
 ```
+
+Atualização por versão, branch, tag ou commit específico:
+
+```bash
+sudo bash scripts/update-kamailio-softswitch.sh --ref v0.1.5
+```
+
+Atualização pelo canal publicado em `releases/manifest.json`:
+
+```bash
+sudo bash scripts/update-latest-kamailio-softswitch.sh stable
+```
+
+Os scripts de update fazem `git fetch`, checkout do ref de destino, reexecutam o instalador e rodam
+o validador. O estado local em `/etc/mnscloud/softswitch` é reaproveitado.
+
+Rollback local do arquivo de configuração do Kamailio:
+
+```bash
+sudo bash scripts/rollback-kamailio-softswitch.sh
+```
+
+O rollback restaura `/etc/kamailio/kamailio.cfg.bkp`, valida o arquivo restaurado e reinicia o
+`kamailio.service`. Ele não altera registros do API/control plane nem move o checkout Git para outra
+versão.
 
 ## Troubleshooting
 
