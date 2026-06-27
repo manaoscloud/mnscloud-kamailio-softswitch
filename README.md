@@ -66,5 +66,6 @@ See `kamailio.md` and `SECURITY.md` for details.
 - Local subscriber-to-subscriber calls use Kamailio `usrloc` after authentication.
 - Outbound calls use `/api/v1/softswitch/kamailio/route`; the API remains responsible for tenant,
   policy, ownership, and route selection.
-- Inbound trunk/IP authentication is intentionally not opened by this connector until the API/DB
-  contract defines trusted source matching and policy enforcement for trunks.
+- Inbound trunk calls use `/api/v1/softswitch/kamailio/route` with `direction=inbound`, source IP,
+  and DID. The API only returns a route when the source IP matches the trunk `trustedCidrs` contract
+  and the DID is active.

@@ -37,8 +37,8 @@ monorepo at runtime.
 
 - Validate all shell scripts with `bash -n scripts/*.sh`.
 - Keep REGISTER and subscriber-originated INVITE authentication fail-closed with SIP digest.
-- Do not enable inbound trunk/IP routing in the public connector without an API-owned trusted source
-  and policy contract.
+- Inbound trunk/IP routing must remain API-owned: Kamailio sends source IP and DID to `/route`, and
+  only routes when the API confirms a trusted trunk/DID match.
 - Search the module for sensitive values before publishing.
 - Keep all required installer helpers inside this repository.
 - Keep the module consuming API contracts only.

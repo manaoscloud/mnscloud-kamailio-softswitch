@@ -67,9 +67,15 @@ REGISTER e INVITE de assinantes são fail-closed: se a API não autorizar ou se 
 requisição é negada. Chamadas locais usam `lookup("location")`; chamadas de saída usam o contrato
 `/api/v1/softswitch/kamailio/route`.
 
-Inbound por trunk/IP ainda não é habilitado automaticamente por este conector. Esse caminho precisa
-de contrato explícito de trusted source e policy no API/control plane antes de aceitar chamadas sem
-digest de assinante.
+Inbound por trunk/IP também usa `/api/v1/softswitch/kamailio/route`, com `direction=inbound`,
+`sourceIP` e DID discado. A API só devolve rota quando:
+
+- o trunk vinculado ao softswitch tem `trustedCidrs` preenchido;
+- o `sourceIP` do pacote SIP está dentro de um dos CIDRs/IPs permitidos;
+- existe DID ativo para o número discado;
+- o DID aponta para assinante registrado ou para destino externo explícito.
+
+Sem esses requisitos, o conector continua fail-closed e não aceita a chamada inbound como trunk.
 
 ## Lifecycle
 

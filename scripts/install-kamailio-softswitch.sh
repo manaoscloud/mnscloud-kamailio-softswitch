@@ -381,6 +381,52 @@ route[API_ROUTE] {
   return(1);
 }
 
+route[INBOUND_ROUTE] {
+  \$var(inbound_url) = \"${API_BASE}/api/v1/softswitch/kamailio/route?node_uuid=${NODE_UUID}\";
+  \$var(inbound_headers) = \"Content-Type: application/json\\r\\nAuthorization: Bearer ${API_TOKEN}\";
+  \$var(inbound_body) = \"{\\\"direction\\\":\\\"inbound\\\",\\\"sourceIP\\\":\\\"\" + \$si + \"\\\",\\\"destination\\\":\\\"\" + \$rU + \"\\\",\\\"domain\\\":\\\"\" + \$rd + \"\\\"}\";
+  \$var(inbound_reply) = \"\";
+
+  if (!http_client_query(\$var(inbound_url), \$var(inbound_body), \$var(inbound_headers), \$var(inbound_reply))) {
+    xlog(\"L_ERR\", \"MNSCloud inbound route API request failed for \$si -> \$rU\\n\");
+    return(-1);
+  }
+
+  if (\$var(inbound_reply) !~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\") {
+    return(-1);
+  }
+
+  if (!jansson_get(\"data.targetType\", \"\$var(inbound_reply)\", \"\$var(inbound_target_type)\")) {
+    return(-1);
+  }
+  if (!jansson_get(\"data.destination\", \"\$var(inbound_reply)\", \"\$var(inbound_destination)\")) {
+    return(-1);
+  }
+
+  if (\$var(inbound_target_type) == \"subscriber\") {
+    if (!jansson_get(\"data.domain\", \"\$var(inbound_reply)\", \"\$var(inbound_domain)\")) {
+      return(-1);
+    }
+    \$ru = \"sip:\" + \$var(inbound_destination) + \"@\" + \$var(inbound_domain);
+    if (!lookup(\"location\")) {
+      sl_send_reply(\"480\", \"Temporarily Unavailable\");
+      exit;
+    }
+    return(1);
+  }
+
+  if (\$var(inbound_target_type) == \"external\") {
+    if (\$var(inbound_destination) =~ \"^sip:\") {
+      \$ru = \$var(inbound_destination);
+    } else {
+      \$ru = \"sip:\" + \$var(inbound_destination);
+    }
+    return(1);
+  }
+
+  return(-1);
+}
+
 request_route {
   if (!mf_process_maxfwd_header(\"10\")) { sl_send_reply(\"483\", \"Too Many Hops\"); exit; }
   if (is_method(\"OPTIONS\")) { sl_send_reply(\"200\", \"OK\"); exit; }
@@ -401,6 +447,13 @@ request_route {
   }
 
   if (is_method(\"INVITE\")) {
+    route(INBOUND_ROUTE);
+    if (\$rc > 0) {
+      record_route();
+      if (!t_relay()) { sl_reply_error(); }
+      exit;
+    }
+
     route(PROXY_AUTH);
     record_route();
 
