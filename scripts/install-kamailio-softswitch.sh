@@ -10,11 +10,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 NODE_UUID_FILE="/etc/mnscloud/softswitch/node.uuid"
 API_TOKEN_FILE="/etc/mnscloud/softswitch/api.token"
 API_BASE_FILE="/etc/mnscloud/softswitch/api.base"
+MEDIA_SOCKET_FILE="/etc/mnscloud/softswitch/media.socket"
 DEFAULT_API_BASE="${MNSCLOUD_API_BASE:-https://api.example.com}"
 SOFTSWITCH_ENGINE="${SOFTSWITCH_ENGINE:-kamailio}"
-NODE_UUID=""
+NODE_UUID="${MNSCLOUD_SOFTSWITCH_NODE_UUID:-}"
 API_BASE=""
-API_TOKEN=""
+API_TOKEN="${MNSCLOUD_SOFTSWITCH_API_TOKEN:-}"
+MEDIA_SOCKET=""
 KAMAILIO_RUNTIME_KIT_DIR="${KAMAILIO_RUNTIME_KIT_DIR:-/opt/mnscloud/runtime-kit}"
 KAMAILIO_RUNTIME_KIT_REPO_URL="${KAMAILIO_RUNTIME_KIT_REPO_URL:-https://github.com/manaoscloud/mnscloud-runtime-kit.git}"
 KAMAILIO_RUNTIME_KIT_CHANNEL="${KAMAILIO_RUNTIME_KIT_CHANNEL:-stable}"
@@ -44,7 +46,12 @@ ensure_api_base_file() {
   dir="$(dirname "${API_BASE_FILE}")"
   [[ -d "$dir" ]] || run "mkdir -p '${dir}'"
 
-  if [[ -f "${API_BASE_FILE}" ]]; then
+  if [[ -n "${MNSCLOUD_API_BASE:-}" ]]; then
+    API_BASE="$(normalize_url "${MNSCLOUD_API_BASE}")"
+    validate_api_base "${API_BASE}" || { err "URL base da API invalida: ${API_BASE}"; return 1; }
+    write_file "${API_BASE_FILE}" "${API_BASE}"
+    ok "API base saved from environment to ${API_BASE_FILE}: ${API_BASE}"
+  elif [[ -f "${API_BASE_FILE}" ]]; then
     value="$(tr -d '[:space:]' < "${API_BASE_FILE}")"
     API_BASE="$(normalize_url "$value")"
     ok "API base carregada de ${API_BASE_FILE}: ${API_BASE}"
@@ -140,7 +147,10 @@ ensure_api_token_file() {
   dir="$(dirname "${API_TOKEN_FILE}")"
   [[ -d "$dir" ]] || run "mkdir -p '${dir}'"
 
-  if [[ -f "${API_TOKEN_FILE}" ]]; then
+  if [[ -n "${API_TOKEN}" ]]; then
+    write_file "${API_TOKEN_FILE}" "${API_TOKEN}"
+    ok "Softswitch API token saved from environment to ${API_TOKEN_FILE}"
+  elif [[ -f "${API_TOKEN_FILE}" ]]; then
     API_TOKEN="$(tr -d '[:space:]' < "${API_TOKEN_FILE}")"
     ok "Softswitch API token loaded from ${API_TOKEN_FILE}"
   else
@@ -157,7 +167,10 @@ ensure_node_uuid_file() {
   local dir compact
   dir="$(dirname "${NODE_UUID_FILE}")"
   [[ -d "$dir" ]] || run "mkdir -p '${dir}'"
-  if [[ -f "${NODE_UUID_FILE}" ]]; then
+  if [[ -n "${NODE_UUID}" ]]; then
+    write_file "${NODE_UUID_FILE}" "${NODE_UUID}"
+    ok "Node UUID saved from environment to ${NODE_UUID_FILE}: ${NODE_UUID}"
+  elif [[ -f "${NODE_UUID_FILE}" ]]; then
     NODE_UUID="$(tr -d '[:space:]' < "${NODE_UUID_FILE}")"
     ok "Node UUID loaded from ${NODE_UUID_FILE}: ${NODE_UUID}"
   else
@@ -199,7 +212,7 @@ public_ipv4() {
 }
 
 bootstrap_node_via_api() {
-  local hostname_value private_ip public_ip payload response_file http_code server_uuid
+  local hostname_value private_ip public_ip payload response_file http_code server_uuid media_socket
   hostname_value="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
   private_ip="$(private_ipv4)"
   public_ip="$(public_ipv4)"
@@ -214,9 +227,25 @@ bootstrap_node_via_api() {
   response_file="$(mktemp)"
   http_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST "${API_BASE}/api/v1/softswitch/runtime/bootstrap?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}" -H "Content-Type: application/json" -H "Authorization: Bearer ${API_TOKEN}" -H "X-Softswitch-Engine: ${SOFTSWITCH_ENGINE}" --data "${payload}" 2>>"${LOG_FILE}")"
   server_uuid="$(json_field "serverUUID" "${response_file}")"
+  media_socket="$(json_field "rtpengineSocket" "${response_file}")"
+  [[ -z "${media_socket}" ]] && media_socket="$(json_field "mediaSocket" "${response_file}")"
+  if [[ -n "${media_socket}" ]]; then
+    MEDIA_SOCKET="${media_socket}"
+    write_file "${MEDIA_SOCKET_FILE}" "${MEDIA_SOCKET}"
+    run "chown root:root '${MEDIA_SOCKET_FILE}'"
+    run "chmod 0640 '${MEDIA_SOCKET_FILE}'"
+  else
+    MEDIA_SOCKET=""
+    rm -f "${MEDIA_SOCKET_FILE}"
+  fi
   rm -f "${response_file}"
   if [[ "${http_code}" == "200" ]]; then
     ok "Node UUID vinculado via API bootstrap. serverUUID: ${server_uuid:-unknown}"
+    if [[ -n "${MEDIA_SOCKET}" ]]; then
+      ok "Media relay resolved from API: ${MEDIA_SOCKET}"
+    else
+      warn "No media relay returned by API. Kamailio will run without RTP anchoring."
+    fi
     return 0
   fi
   warn "Softswitch API bootstrap returned HTTP ${http_code}. Register the Node UUID manually if necessary."
@@ -250,7 +279,47 @@ backup_once() {
 
 write_kamailio_config() {
   local cfg="/etc/kamailio/kamailio.cfg"
+  local rtpengine_modules="" rtpengine_params="" rtpengine_offer="" rtpengine_delete=""
+  rtpengine_offer='
+route[MEDIA_OFFER] {
+  return(1);
+}
+'
   backup_once "$cfg"
+  if [[ -z "${MEDIA_SOCKET}" && -f "${MEDIA_SOCKET_FILE}" ]]; then
+    MEDIA_SOCKET="$(tr -d '[:space:]' < "${MEDIA_SOCKET_FILE}")"
+  fi
+  if [[ -n "${MEDIA_SOCKET}" ]]; then
+    rtpengine_modules="loadmodule \"rtpengine.so\"
+loadmodule \"sdpops.so\""
+    rtpengine_params="modparam(\"rtpengine\", \"rtpengine_sock\", \"${MEDIA_SOCKET}\")"
+    rtpengine_offer='
+route[MEDIA_OFFER] {
+  if (has_body("application/sdp")) {
+    if (!rtpengine_offer("replace-origin replace-session-connection")) {
+      xlog("L_ERR", "MNSCloud rtpengine_offer failed\n");
+      sl_send_reply("503", "Media Relay Unavailable");
+      exit;
+    }
+  }
+  t_on_reply("MEDIA_ANSWER");
+  return(1);
+}
+
+onreply_route[MEDIA_ANSWER] {
+  if (status =~ "^(18[0-9]|2[0-9][0-9])" && has_body("application/sdp")) {
+    if (!rtpengine_answer("replace-origin replace-session-connection")) {
+      xlog("L_ERR", "MNSCloud rtpengine_answer failed\n");
+    }
+  }
+}
+'
+    rtpengine_delete='
+    if (is_method("BYE|CANCEL")) {
+      rtpengine_delete();
+    }
+'
+  fi
   write_file "$cfg" "#!KAMAILIO
 
 listen=udp:0.0.0.0:5060
@@ -276,12 +345,14 @@ loadmodule \"corex.so\"
 loadmodule \"ctl.so\"
 loadmodule \"http_client.so\"
 loadmodule \"jansson.so\"
+${rtpengine_modules}
 
 modparam(\"usrloc\", \"db_mode\", 0)
 modparam(\"registrar\", \"max_contacts\", 1)
 modparam(\"auth\", \"nonce_expire\", 300)
 modparam(\"auth\", \"qop\", \"auth\")
 modparam(\"http_client\", \"query_result\", 0)
+${rtpengine_params}
 
 route[AUTH_LOOKUP] {
   \$var(auth_url) = \"${API_BASE}/api/v1/softswitch/runtime/auth?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}\";
@@ -428,6 +499,8 @@ route[INBOUND_ROUTE] {
   return(-1);
 }
 
+${rtpengine_offer}
+
 request_route {
   if (!mf_process_maxfwd_header(\"10\")) { sl_send_reply(\"483\", \"Too Many Hops\"); exit; }
   if (is_method(\"OPTIONS\")) { sl_send_reply(\"200\", \"OK\"); exit; }
@@ -437,6 +510,7 @@ request_route {
       sl_send_reply(\"404\", \"Not Here\");
       exit;
     }
+${rtpengine_delete}
     if (!t_relay()) { sl_reply_error(); }
     exit;
   }
@@ -451,6 +525,7 @@ request_route {
     route(INBOUND_ROUTE);
     if (\$rc > 0) {
       record_route();
+      route(MEDIA_OFFER);
       if (!t_relay()) { sl_reply_error(); }
       exit;
     }
@@ -459,11 +534,13 @@ request_route {
     record_route();
 
     if (lookup(\"location\")) {
+      route(MEDIA_OFFER);
       if (!t_relay()) { sl_reply_error(); }
       exit;
     }
 
     route(API_ROUTE);
+    route(MEDIA_OFFER);
     if (!t_relay()) { sl_reply_error(); }
     exit;
   }

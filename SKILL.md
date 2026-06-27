@@ -31,8 +31,11 @@ monorepo at runtime.
 - Runtime API consumer: MNSCloud Softswitch endpoints under `/api/v1/softswitch/runtime/*`
 - Runtime engine: `kamailio`; do not reintroduce engine-specific legacy runtime endpoints.
 - Local state prefix: `/etc/mnscloud/softswitch`
-- WebRTC SIP/WSS and rtpengine media anchoring are not owned by this generic
-  connector; use `mnscloud-kamailio-webrtc` for that realtime edge contract.
+- WebRTC SIP/WSS and local WebRTC TLS are not owned by this generic connector; use
+  `mnscloud-kamailio-webrtc` for that realtime signaling edge contract.
+- RTP/SRTP anchoring is consumed from the autonomous `mnscloud-media` runtime when the API assigns
+  a `RealtimeMediaServer` to this Softswitch server. Do not embed media relay ownership inside this
+  repository.
 
 ## Checklist
 
@@ -40,6 +43,9 @@ monorepo at runtime.
 - Keep REGISTER and subscriber-originated INVITE authentication fail-closed with SIP digest.
 - Inbound trunk/IP routing must remain API-owned: Kamailio sends source IP and DID to `/route`, and
   only routes when the API confirms a trusted trunk/DID match.
+- When `rtpengineSocket` is returned by runtime bootstrap, generated Kamailio config must load
+  `rtpengine.so`, set `rtpengine_sock`, and anchor INVITE dialogs with SDP. Without that socket, the
+  connector must keep running without RTP anchoring.
 - Search the module for sensitive values before publishing.
 - Keep all required installer helpers inside this repository.
 - Keep the module consuming API contracts only.

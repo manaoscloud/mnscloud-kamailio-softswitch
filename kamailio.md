@@ -2,9 +2,10 @@
 
 Este diretório documenta o uso do Kamailio como camada Softswitch/SIP edge do mnscloud.
 
-Para WebRTC/SIP over WebSocket, certificados WSS por domínio e rtpengine, use o
-conector dedicado `mnscloud-kamailio-webrtc`. Este módulo continua sendo o
-contrato Kamailio/softswitch genérico.
+Para WebRTC/SIP over WebSocket e certificados WSS por domínio, use o conector
+dedicado `mnscloud-kamailio-webrtc`. RTP/SRTP e rtpengine pertencem ao módulo
+autônomo `mnscloud-media`, que pode ser consumido por WebRTC, Softswitch, SBC e
+outros serviços que precisem ancorar mídia.
 
 ## Modelo
 
@@ -21,6 +22,8 @@ contrato Kamailio/softswitch genérico.
 
 - `VoipSoftswitchProvider`: catálogo do provider/plataforma, com engines `kamailio`, `opensips`, `sippulse`, `vsc` e `custom`.
 - `VoipSoftswitchServer`: servidores autorizados a consultar runtime.
+- `RealtimeMediaServer`: media relay opcional selecionado no `VoipSoftswitchServer` para ancorar
+  RTP/SRTP via `mnscloud-media`/`rtpengine`.
 - `VoipSoftswitchAccount`: vínculo tenant/domínio/customer/provider/server usado para autorizar domínios e assinantes.
 
 ## Endpoints Runtime
@@ -47,6 +50,8 @@ Antes de instalar, confirme:
 - o canal `stable` do repositório aponta para uma versão que usa esse contrato;
 - existe cadastro `VoipSoftswitchServer` para este runtime com engine `kamailio` e `VsrNodeUUID`
   compatível, ou o fluxo operacional de bootstrap está preparado para vincular o node UUID local;
+- se este Softswitch deve ancorar RTP/SRTP, existe `RealtimeMediaServer` ativo selecionado no
+  cadastro do `VoipSoftswitchServer`;
 - o host consegue acessar a URL base da API;
 - as portas SIP necessárias estão liberadas no firewall do host, normalmente `5060/udp` e
   `5060/tcp`.
@@ -65,6 +70,8 @@ sudo bash scripts/install-kamailio-softswitch.sh --dry-run
 
 O instalador:
 
+- aceita `MNSCLOUD_API_BASE`, `MNSCLOUD_SOFTSWITCH_NODE_UUID` e
+  `MNSCLOUD_SOFTSWITCH_API_TOKEN` quando executado a partir do comando gerado pelo painel;
 - solicita a URL base da API na primeira execução e salva em `/etc/mnscloud/softswitch/api.base`;
 - configura o repositório oficial Kamailio 6.1.x antes da instalação;
   - Debian 12/13: `http://deb.kamailio.org/kamailio61` com keyring `/usr/share/keyrings/kamailio.gpg`;
@@ -74,9 +81,13 @@ O instalador:
 - cria ou reaproveita `/etc/mnscloud/softswitch/node.uuid`;
 - cria ou reaproveita `/etc/mnscloud/softswitch/api.token`;
 - tenta vincular o node UUID via API bootstrap usando hostname, IPv4 privado e IPv4 público descoberto;
+- salva `/etc/mnscloud/softswitch/media.socket` quando a API retorna o `rtpengineSocket` do
+  `RealtimeMediaServer` selecionado;
 - não executa SQL direto nem instala cliente MariaDB para vincular o node UUID;
 - faz backup do `/etc/kamailio/kamailio.cfg` original como `.bkp`;
 - gera um `kamailio.cfg` com autenticação SIP digest para REGISTER e INVITE de assinantes;
+- habilita `rtpengine` no `kamailio.cfg` quando existe media relay selecionado; sem media relay, o
+  conector continua atuando somente como sinalização/proxy SIP;
 - salva contatos com `registrar/usrloc` em memória local;
 - consulta `/route` na API para chamadas de saída quando o destino não está registrado localmente.
 - grava o Bearer token local no `kamailio.cfg` para autenticar as chamadas runtime contra a API.

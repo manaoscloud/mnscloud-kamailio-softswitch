@@ -13,9 +13,12 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
   policy, and secret resolution.
 - Do not commit secrets, customer data, production infrastructure values, provider credentials, or
   private business rules.
-- This repository is the generic Kamailio softswitch/SIP connector. WebRTC SIP
-  over WebSocket, local WebRTC TLS termination, and rtpengine media anchoring
-  belong to `mnscloud-kamailio-webrtc`.
+- This repository is the generic Kamailio softswitch/SIP connector. RTP/SRTP media anchoring is
+  consumed from the autonomous `mnscloud-media` runtime when the API assigns a media relay to this
+  Softswitch server.
+- WebRTC SIP over WebSocket and local WebRTC TLS termination remain in
+  `mnscloud-kamailio-webrtc`; the media relay itself remains reusable infrastructure owned by
+  `mnscloud-media`.
 
 ## Contract
 
@@ -36,6 +39,8 @@ contract. It can run on MNSCloud, customer, or partner infrastructure.
 - Config validation: `kamailio -c -f /etc/kamailio/kamailio.cfg`
 - Runtime API: `/api/v1/softswitch/runtime/*`
 - Runtime engine: `kamailio`
+- Optional media relay: API-selected `RealtimeMediaServer` exposed to Kamailio as an
+  `rtpengineSocket`.
 
 The API/control plane must be deployed with the canonical softswitch runtime contract before this
 connector is installed or updated. This connector does not call engine-specific legacy runtime
@@ -49,6 +54,8 @@ endpoints.
 - A `VoipSoftswitchServer` record in the API/control plane for this runtime, with engine
   `kamailio` and a matching `VsrNodeUUID`, or an operational bootstrap flow that can bind the local
   node UUID.
+- Optional: an active `RealtimeMediaServer` selected on the `VoipSoftswitchServer` record when this
+  node must anchor RTP/SRTP through `mnscloud-media`.
 - SIP firewall rules opened according to the deployment model, typically `5060/udp` and `5060/tcp`.
 
 ## Install
@@ -82,6 +89,12 @@ The installer creates or reuses `/etc/mnscloud/softswitch/node.uuid`,
 `/etc/mnscloud/softswitch/api.token`, and `/etc/mnscloud/softswitch/api.base`, writes the Kamailio
 configuration, validates bootstrap against the API when possible, and keeps the original
 `/etc/kamailio/kamailio.cfg` as `/etc/kamailio/kamailio.cfg.bkp`.
+API-generated commands may pass `MNSCLOUD_API_BASE`, `MNSCLOUD_SOFTSWITCH_NODE_UUID`, and
+`MNSCLOUD_SOFTSWITCH_API_TOKEN`; when present, the installer persists those values before
+bootstrapping.
+When the API returns `rtpengineSocket`, the installer stores it in
+`/etc/mnscloud/softswitch/media.socket` and enables Kamailio `rtpengine` handling in the generated
+configuration. Without an assigned media relay, Kamailio runs as SIP signaling/proxy only.
 
 ## Validate
 
@@ -134,3 +147,5 @@ See `kamailio.md` and `SECURITY.md` for details.
 - Inbound trunk calls use `/api/v1/softswitch/runtime/route` with `direction=inbound`, source IP,
   and DID. The API only returns a route when the source IP matches the trunk `trustedCidrs` contract
   and the DID is active.
+- If the API-selected Softswitch server has a media relay, INVITE dialogs with SDP are anchored via
+  `mnscloud-media`/`rtpengine`; otherwise RTP remains outside this connector.
