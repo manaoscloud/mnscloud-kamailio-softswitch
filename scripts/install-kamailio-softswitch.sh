@@ -365,7 +365,7 @@ route[AUTH_LOOKUP] {
     return(-1);
   }
 
-  if (\$var(auth_reply) !~ \"\\\"authorized\\\"[[:space:]]*:[[:space:]]*true\") {
+  if (!(\$var(auth_reply) =~ \"\\\"authorized\\\"[[:space:]]*:[[:space:]]*true\")) {
     xlog(\"L_WARN\", \"MNSCloud denied subscriber \$fU@\$fd\\n\");
     return(-2);
   }
@@ -424,7 +424,7 @@ route[API_ROUTE] {
     exit;
   }
 
-  if (\$var(route_reply) !~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\") {
+  if (!(\$var(route_reply) =~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\")) {
     sl_send_reply(\"404\", \"No Route\");
     exit;
   }
@@ -464,7 +464,7 @@ route[INBOUND_ROUTE] {
     return(-1);
   }
 
-  if (\$var(inbound_reply) !~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\") {
+  if (!(\$var(inbound_reply) =~ \"\\\"routed\\\"[[:space:]]*:[[:space:]]*true\")) {
     return(-1);
   }
 
