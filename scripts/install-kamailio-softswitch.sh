@@ -270,6 +270,40 @@ install_packages_rocky() {
   MNSCLOUD_KAMAILIO_PACKAGE_PROFILE=core mrtk_ensure_kamailio
 }
 
+stop_existing_kamailio() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  run "systemctl stop kamailio 2>/dev/null || true"
+  if [[ "$DRY_RUN" == true ]]; then
+    return 0
+  fi
+
+  for _ in 1 2 3 4 5; do
+    pgrep -x kamailio >/dev/null 2>&1 || break
+    sleep 1
+  done
+
+  if pgrep -x kamailio >/dev/null 2>&1; then
+    warn "Kamailio processes still running after systemctl stop; sending TERM before applying new config."
+    run "pkill -TERM -x kamailio || true"
+    for _ in 1 2 3 4 5; do
+      pgrep -x kamailio >/dev/null 2>&1 || break
+      sleep 1
+    done
+  fi
+
+  if pgrep -x kamailio >/dev/null 2>&1; then
+    warn "Kamailio processes still running after TERM; sending KILL to avoid stale PID/socket conflicts."
+    run "pkill -KILL -x kamailio || true"
+  fi
+
+  if ! pgrep -x kamailio >/dev/null 2>&1; then
+    run "rm -f /run/kamailio/kamailio.pid"
+  fi
+}
+
 backup_once() {
   local file="$1"
   if [[ -f "$file" && ! -f "${file}.bkp" ]]; then
@@ -575,7 +609,13 @@ ${rtpengine_delete}
 
 enable_service() {
   run "systemctl enable kamailio"
-  run "systemctl restart kamailio"
+  stop_existing_kamailio
+  if ! run "systemctl start kamailio"; then
+    run "systemctl status kamailio --no-pager -l || true"
+    run "journalctl -u kamailio --no-pager -n 120 || true"
+    return 1
+  fi
+  run "systemctl is-active kamailio"
 }
 
 main() {
@@ -594,6 +634,7 @@ main() {
     debian) install_packages_debian ;;
     rocky) install_packages_rocky ;;
   esac
+  stop_existing_kamailio
   bootstrap_node_via_api || true
   write_kamailio_config
   enable_service
