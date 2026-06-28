@@ -380,8 +380,8 @@ route[AUTH_LOOKUP] {
     return(-3);
   }
 
-  if (jansson_get(\"data.accountUUID\", \"\$var(auth_reply)\", \"\$avp(account_uuid)\")) {}
-  if (jansson_get(\"data.subscriberUUID\", \"\$var(auth_reply)\", \"\$avp(subscriber_uuid)\")) {}
+  jansson_get(\"data.accountUUID\", \"\$var(auth_reply)\", \"\$avp(account_uuid)\");
+  jansson_get(\"data.subscriberUUID\", \"\$var(auth_reply)\", \"\$avp(subscriber_uuid)\");
   return(1);
 }
 
@@ -455,11 +455,11 @@ route[API_ROUTE] {
   if (!jansson_get(\"data.destination\", \"\$var(route_reply)\", \"\$var(route_destination)\")) {
     \$var(route_destination) = \$rU;
   }
-  if (jansson_get(\"data.accountUUID\", \"\$var(route_reply)\", \"\$avp(account_uuid)\")) {}
-  if (jansson_get(\"data.subscriberUUID\", \"\$var(route_reply)\", \"\$avp(subscriber_uuid)\")) {}
-  if (jansson_get(\"data.trunkUUID\", \"\$var(route_reply)\", \"\$avp(trunk_uuid)\")) {}
-  if (jansson_get(\"data.routeUUID\", \"\$var(route_reply)\", \"\$avp(route_uuid)\")) {}
-  if (jansson_get(\"data.rateUUID\", \"\$var(route_reply)\", \"\$avp(rate_uuid)\")) {}
+  jansson_get(\"data.accountUUID\", \"\$var(route_reply)\", \"\$avp(account_uuid)\");
+  jansson_get(\"data.subscriberUUID\", \"\$var(route_reply)\", \"\$avp(subscriber_uuid)\");
+  jansson_get(\"data.trunkUUID\", \"\$var(route_reply)\", \"\$avp(trunk_uuid)\");
+  jansson_get(\"data.routeUUID\", \"\$var(route_reply)\", \"\$avp(route_uuid)\");
+  jansson_get(\"data.rateUUID\", \"\$var(route_reply)\", \"\$avp(rate_uuid)\");
 
   \$ru = \"sip:\" + \$var(route_destination) + \"@\" + \$var(route_host) + \":\" + \$var(route_port);
   \$du = \"sip:\" + \$var(route_host) + \":\" + \$var(route_port) + \";transport=\" + \$var(route_transport);
