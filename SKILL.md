@@ -46,6 +46,10 @@ monorepo at runtime.
 - When `rtpengineSocket` is returned by runtime bootstrap, generated Kamailio config must load
   `rtpengine.so`, set `rtpengine_sock`, and anchor INVITE dialogs with SDP. Without that socket, the
   connector must keep running without RTP anchoring.
+- Codec policy is control-plane owned. When runtime auth/route responses include
+  `codecPolicy.rtpengineFlags`, pass those API-generated flags to `rtpengine_offer()` and
+  `rtpengine_answer()`. Do not expose or persist arbitrary user-provided rtpengine flags in this
+  connector.
 - Search the module for sensitive values before publishing.
 - Keep all required installer helpers inside this repository.
 - Keep the module consuming API contracts only.

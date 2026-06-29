@@ -330,7 +330,11 @@ loadmodule \"sdpops.so\""
     rtpengine_offer='
 route[MEDIA_OFFER] {
   if (has_body("application/sdp")) {
-    if (!rtpengine_offer("replace-origin replace-session-connection")) {
+    $var(media_flags) = $avp(codec_flags);
+    if ($var(media_flags) == "") {
+      $var(media_flags) = "replace-origin replace-session-connection";
+    }
+    if (!rtpengine_offer("$var(media_flags)")) {
       xlog("L_ERR", "MNSCloud rtpengine_offer failed\n");
       sl_send_reply("503", "Media Relay Unavailable");
       exit;
@@ -342,7 +346,11 @@ route[MEDIA_OFFER] {
 
 onreply_route[MEDIA_ANSWER] {
   if (status =~ "^(18[0-9]|2[0-9][0-9])" && has_body("application/sdp")) {
-    if (!rtpengine_answer("replace-origin replace-session-connection")) {
+    $var(media_flags) = $avp(codec_flags);
+    if ($var(media_flags) == "") {
+      $var(media_flags) = "replace-origin replace-session-connection";
+    }
+    if (!rtpengine_answer("$var(media_flags)")) {
       xlog("L_ERR", "MNSCloud rtpengine_answer failed\n");
     }
   }
@@ -416,6 +424,9 @@ route[AUTH_LOOKUP] {
 
   jansson_get(\"data.accountUUID\", \"\$var(auth_reply)\", \"\$avp(account_uuid)\");
   jansson_get(\"data.subscriberUUID\", \"\$var(auth_reply)\", \"\$avp(subscriber_uuid)\");
+  if (!jansson_get(\"data.codecPolicy.rtpengineFlags\", \"\$var(auth_reply)\", \"\$avp(codec_flags)\")) {
+    \$avp(codec_flags) = \"\";
+  }
   return(1);
 }
 
@@ -494,6 +505,9 @@ route[API_ROUTE] {
   jansson_get(\"data.trunkUUID\", \"\$var(route_reply)\", \"\$avp(trunk_uuid)\");
   jansson_get(\"data.routeUUID\", \"\$var(route_reply)\", \"\$avp(route_uuid)\");
   jansson_get(\"data.rateUUID\", \"\$var(route_reply)\", \"\$avp(rate_uuid)\");
+  if (!jansson_get(\"data.codecPolicy.rtpengineFlags\", \"\$var(route_reply)\", \"\$avp(codec_flags)\")) {
+    \$avp(codec_flags) = \"\";
+  }
 
   \$ru = \"sip:\" + \$var(route_destination) + \"@\" + \$var(route_host) + \":\" + \$var(route_port);
   \$du = \"sip:\" + \$var(route_host) + \":\" + \$var(route_port) + \";transport=\" + \$var(route_transport);
@@ -528,6 +542,9 @@ route[INBOUND_ROUTE] {
   }
   if (!jansson_get(\"data.destination\", \"\$var(inbound_reply)\", \"\$var(inbound_destination)\")) {
     return(-1);
+  }
+  if (!jansson_get(\"data.codecPolicy.rtpengineFlags\", \"\$var(inbound_reply)\", \"\$avp(codec_flags)\")) {
+    \$avp(codec_flags) = \"\";
   }
 
   if (\$var(inbound_target_type) == \"subscriber\") {

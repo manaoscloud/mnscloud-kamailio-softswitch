@@ -95,6 +95,10 @@ bootstrapping.
 When the API returns `rtpengineSocket`, the installer stores it in
 `/etc/mnscloud/softswitch/media.socket` and enables Kamailio `rtpengine` handling in the generated
 configuration. Without an assigned media relay, Kamailio runs as SIP signaling/proxy only.
+When runtime route/auth responses include `codecPolicy.rtpengineFlags`, the generated Kamailio
+configuration passes those control-plane generated flags to `rtpengine_offer()` and
+`rtpengine_answer()`. Codec manipulation remains fail-closed and API-owned: this connector must not
+accept tenant-provided raw rtpengine flags or invent local transcoding policy.
 
 ## Validate
 
