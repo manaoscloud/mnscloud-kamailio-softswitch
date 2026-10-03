@@ -49,9 +49,20 @@ validate_mnscloud_agent() {
   bash "${AGENT_VALIDATOR}" --require-active --require-enrolled --require-job voip.softswitch.runtime --require-capability voip.softswitch.manage
 }
 
+# Keep the enrolled Agent name (MonitoringAgent.MagName); fall back to the FQDN only when the
+# local Agent has no name yet. Passing the FQDN unconditionally renames Agents enrolled with a
+# short name (for example mns-api-dev1 -> mns-api-dev1.<internal-domain>).
+mnscloud_agent_install_label() {
+  local name=""
+  name="$(awk '/^[[:space:]]*name[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); print; exit }' \
+    /etc/mnscloud/agent/agent.conf 2>/dev/null || true)"
+  [[ -n "$name" ]] || name="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf 'mnscloud-agent')"
+  printf '%s\n' "$name"
+}
+
 refresh_agent_capabilities() {
   local install_label
-  install_label="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf 'mnscloud-agent')"
+  install_label="$(mnscloud_agent_install_label)"
 
   if [[ "$SKIP_AGENT_REFRESH" == true || "$SKIP_AGENT_REFRESH" == "1" ]]; then
     info "Skipping mnscloud-agent capability refresh for this lifecycle run."
