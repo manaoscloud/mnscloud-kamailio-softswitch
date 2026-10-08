@@ -1255,10 +1255,14 @@ install_systemd_override() {
     log DRY "install Kamailio systemd override at ${override_file}"
     return 0
   fi
+  local log_group="${KAMAILIO_RUNTIME_GROUP}"
+  if ! getent group "${log_group}" >/dev/null 2>&1; then
+    log_group="root"
+  fi
   install -d -m 0755 "${override_dir}"
-  install -d -m 0750 -o root -g "${KAMAILIO_RUNTIME_GROUP}" "${KAMAILIO_LOG_DIR}"
+  install -d -m 0750 -o root -g "${log_group}" "${KAMAILIO_LOG_DIR}"
   touch "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log"
-  chown root:"${KAMAILIO_RUNTIME_GROUP}" "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log" 2>/dev/null || chown root:root "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log"
+  chown root:"${log_group}" "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log" 2>/dev/null || chown root:root "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log"
   chmod 0660 "${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log"
   cat >"${override_file}" <<'EOF_SYSTEMD_OVERRIDE'
 [Service]
@@ -1283,6 +1287,11 @@ ensure_kamailio_runtime_dir() {
     group="root"
   fi
   run "install -d -m 0770 -o '${owner}' -g '${group}' /run/kamailio"
+  if id -u "${KAMAILIO_RUNTIME_USER}" >/dev/null 2>&1 && getent group "${KAMAILIO_RUNTIME_GROUP}" >/dev/null 2>&1; then
+    run "chown -R '${KAMAILIO_RUNTIME_USER}:${KAMAILIO_RUNTIME_GROUP}' '${UAC_DB_TEXT_DIR}' 2>/dev/null || true"
+    run "chgrp '${KAMAILIO_RUNTIME_GROUP}' '${KAMAILIO_LOG_DIR}' 2>/dev/null || true"
+    run "chgrp '${KAMAILIO_RUNTIME_GROUP}' '${KAMAILIO_LOG_DIR}/cdr-diagnostic-capture.log' 2>/dev/null || true"
+  fi
 }
 
 enable_service() {
@@ -1340,6 +1349,7 @@ main() {
   bootstrap_node_via_api || true
   ensure_uac_contact_addr
   load_sbc_internal_sip_target
+  ensure_kamailio_runtime_dir
   write_kamailio_config
   enable_service
   refresh_agent_capabilities
