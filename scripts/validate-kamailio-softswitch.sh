@@ -43,6 +43,11 @@ grep -Fq 'listen=udp:[${public_ip6}]:5060' "$installer"
 grep -Fq 'listen=tcp:[${public_ip6}]:5060' "$installer"
 grep -Fq 'alias=\"[${public_ip6}]:5060\"' "$installer"
 grep -Fq 'dns_try_ipv6=yes' "$installer"
+grep -Fq 'route[MEDIA_ANSWER] {' "$installer"
+grep -Fq '  route(MEDIA_ANSWER);' "$installer"
+! grep -Fq 't_on_reply("MEDIA_ANSWER")' "$installer"
+grep -Fq 'address-family=IP6' "$installer"
+grep -Fq '$avp(media_caller_af) = "IP6";' "$installer"
 grep -Fq '\"publicIPv6\":' "$installer"
 grep -Fq 'if (is_method(\"CANCEL\"))' "$installer"
 grep -Fq 't_check_trans()' "$installer"
@@ -214,6 +219,10 @@ if is_managed_runtime_config "$KAMAILIO_CFG"; then
   }
   ! grep -Fq 'listen=tcp:0.0.0.0:5060' "$KAMAILIO_CFG" || {
     echo "[validate-kamailio-softswitch] deployed config must not advertise 0.0.0.0 for TCP SIP" >&2
+    exit 1
+  }
+  ! grep -Fq 't_on_reply("MEDIA_ANSWER")' "$KAMAILIO_CFG" || {
+    echo "[validate-kamailio-softswitch] media answer must run from the accounting reply route" >&2
     exit 1
   }
   if grep -Fq 'listen=udp:[' "$KAMAILIO_CFG"; then

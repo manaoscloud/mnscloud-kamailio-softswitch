@@ -152,8 +152,11 @@ so each socket inserts its advertised address and `enable_double_rr` covers IPv4
 `MNSCLOUD_KAMAILIO_SIP_LISTEN_IPV6` selects an explicit host address or `off` for IPv4 only. The
 bootstrap always reports `publicIPv6` (empty when none), which the control plane stores in
 `VsrPublicIPv6` and publishes as an AAAA record for managed SIP realms. IPv4-only hosts keep the
-previous configuration unchanged. The rtpengine media relay remains IPv4; IPv6-only endpoints need
-a dual-stack media relay before audio can be anchored.
+previous configuration unchanged.
+With a media relay assigned, `route[MEDIA_OFFER]` adds `address-family=IP6|IP4` from the next hop
+(`$du`, else the R-URI host; hostnames keep the offered family) and `route[MEDIA_ANSWER]`, called
+from the transaction reply route, returns the answer in the caller family (received address `$Ri`). A dual-stack
+`mnscloud-media` rtpengine therefore bridges IPv4 and IPv6 endpoints.
 The generated dialog route calls `loose_route()` once per in-dialog request; each chained engine must
 consume only its own Record-Route hop and leave the next hop for the next engine.
 When the Softswitch is chained behind an MNSCloud SBC and both servers share a private/service

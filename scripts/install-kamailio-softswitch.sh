@@ -597,6 +597,10 @@ alias=\"[${public_ip6}]:5060\""
 route[MEDIA_OFFER] {
   return(1);
 }
+
+route[MEDIA_ANSWER] {
+  return(1);
+}
 '
   backup_once "$cfg"
   if [[ -z "${MEDIA_SOCKET}" && -f "${MEDIA_SOCKET_FILE}" ]]; then
@@ -607,32 +611,54 @@ route[MEDIA_OFFER] {
 loadmodule \"sdpops.so\""
     rtpengine_params="modparam(\"rtpengine\", \"rtpengine_sock\", \"${MEDIA_SOCKET}\")"
     rtpengine_offer='
+# Dual-stack media: the offer leg uses the address family of the next hop (IPv6 or IPv4 literal;
+# hostnames keep the offered family) and the answer leg returns in the caller family ($Ri), so
+# rtpengine bridges IPv4 and IPv6 endpoints.
 route[MEDIA_OFFER] {
+  if ($Ri =~ ":") {
+    $avp(media_caller_af) = "IP6";
+  } else {
+    $avp(media_caller_af) = "IP4";
+  }
   if (has_body("application/sdp")) {
     $var(media_flags) = $avp(codec_flags);
     if ($var(media_flags) == "") {
       $var(media_flags) = "replace-origin replace-session-connection";
     }
+    if ($du != "") {
+      $var(media_host) = $(du{uri.host});
+    } else {
+      $var(media_host) = $rd;
+    }
+    if ($var(media_host) =~ ":") {
+      $var(media_flags) = $var(media_flags) + " address-family=IP6";
+    } else if ($var(media_host) =~ "^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$") {
+      $var(media_flags) = $var(media_flags) + " address-family=IP4";
+    }
     if (!rtpengine_offer("$var(media_flags)")) {
-      xlog("L_ERR", "MNSCloud rtpengine_offer failed\n");
+      xlog("L_ERR", "MNSCloud rtpengine_offer failed flags=$var(media_flags)\n");
       sl_send_reply("503", "Media Relay Unavailable");
       exit;
     }
   }
-  t_on_reply("MEDIA_ANSWER");
   return(1);
 }
 
-onreply_route[MEDIA_ANSWER] {
+# Called from the transaction reply route; a second t_on_reply() would replace accounting.
+route[MEDIA_ANSWER] {
   if (status =~ "^(18[0-9]|2[0-9][0-9])" && has_body("application/sdp")) {
     $var(media_flags) = $avp(codec_flags);
     if ($var(media_flags) == "") {
       $var(media_flags) = "replace-origin replace-session-connection";
     }
+    if ($avp(media_caller_af) != "") {
+      $var(media_flags) = $var(media_flags) + " address-family=" + $avp(media_caller_af);
+    }
     if (!rtpengine_answer("$var(media_flags)")) {
-      xlog("L_ERR", "MNSCloud rtpengine_answer failed\n");
+      xlog("L_ERR", "MNSCloud rtpengine_answer failed flags=$var(media_flags)\n");
     }
   }
+  return(1);
 }
 '
     rtpengine_delete='
@@ -1264,6 +1290,7 @@ ${record_route_block}
 }
 
 onreply_route[MNSCLOUD_ACCOUNTING_REPLY] {
+  route(MEDIA_ANSWER);
   if (\$rs >= 200) {
     if (\$rs >= 200 && \$rs < 300) {
       \$var(accounting_event) = \"answered\";
