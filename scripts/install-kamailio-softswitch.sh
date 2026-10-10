@@ -24,6 +24,8 @@ MEDIA_SOCKET=""
 UAC_CONTACT_ADDR="${MNSCLOUD_KAMAILIO_UAC_CONTACT_ADDR:-}"
 UAC_DEFAULT_SOCKET="${MNSCLOUD_KAMAILIO_UAC_DEFAULT_SOCKET:-udp:0.0.0.0:5060}"
 KAMAILIO_SIP_LISTEN_IP="${MNSCLOUD_KAMAILIO_SIP_LISTEN_IP:-}"
+# Global IPv6 SIP listener: empty = auto-detect, "off" = IPv4 only, or an explicit host address.
+KAMAILIO_SIP_LISTEN_IPV6="${MNSCLOUD_KAMAILIO_SIP_LISTEN_IPV6:-}"
 SBC_INTERNAL_SIP_TARGET="${MNSCLOUD_SBC_INTERNAL_SIP_TARGET:-}"
 SBC_PUBLIC_SIP_HOST="${MNSCLOUD_SBC_PUBLIC_SIP_HOST:-}"
 KAMAILIO_RUNTIME_USER="${MNSCLOUD_KAMAILIO_RUNTIME_USER:-kamailio}"
@@ -418,6 +420,28 @@ resolve_kamailio_sip_listen_ip() {
   fi
 }
 
+# Stable global unicast IPv6 assigned to this host (no temporary/deprecated/tentative addresses,
+# no ULA/link-local). IPv6 is routed end to end, so it is listened on directly without advertise.
+public_ipv6() {
+  local candidate="${KAMAILIO_SIP_LISTEN_IPV6}"
+  [[ "${candidate,,}" == "off" ]] && return 0
+  if [[ -z "${candidate}" ]]; then
+    candidate="$(
+      ip -o -6 addr show scope global 2>/dev/null |
+        grep -Ev ' (temporary|deprecated|tentative|dadfailed)( |$)' |
+        awk '{split($4,a,"/"); print a[1]}' |
+        grep -Ei '^[23][0-9a-f]{0,3}:' | head -n1 || true
+    )"
+  fi
+  candidate="${candidate,,}"
+  [[ -n "${candidate}" ]] || return 0
+  if ! ip -o -6 addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print tolower(a[1])}' | grep -qxF "${candidate}"; then
+    warn "IPv6 SIP address ${candidate} is not assigned to this host; Kamailio stays IPv4 only" >&2
+    return 0
+  fi
+  printf '%s\n' "${candidate}"
+}
+
 public_ipv4() {
   local candidate=""
   candidate="$(
@@ -432,14 +456,17 @@ public_ipv4() {
 }
 
 bootstrap_node_via_api() {
-  local hostname_value private_ip public_ip payload response_file http_code server_uuid media_socket
+  local hostname_value private_ip public_ip public_ip6 payload response_file http_code server_uuid media_socket
   hostname_value="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
   private_ip="$(private_ipv4)"
   public_ip="$(public_ipv4)"
+  public_ip6="$(public_ipv6)"
   UAC_CONTACT_ADDR="$(resolve_uac_contact_addr "${public_ip}" "${private_ip}" "${hostname_value}")" || UAC_CONTACT_ADDR=""
   payload="{\"engine\":\"$(json_escape "${SOFTSWITCH_ENGINE}")\",\"hostname\":\"$(json_escape "${hostname_value}")\""
   [[ -n "${private_ip}" ]] && payload+=",\"privateIP\":\"$(json_escape "${private_ip}")\""
   [[ -n "${public_ip}" ]] && payload+=",\"publicIP\":\"$(json_escape "${public_ip}")\""
+  # Always report IPv6: an empty value clears a stale address so AAAA realms are withdrawn.
+  payload+=",\"publicIPv6\":\"$(json_escape "${public_ip6}")\""
   payload+="}"
   if [[ "$DRY_RUN" == true ]]; then
     log DRY "POST ${API_BASE}/api/v1/softswitch/runtime/bootstrap?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE} with local token ${API_TOKEN_FILE}"
@@ -535,7 +562,7 @@ write_kamailio_config() {
   local cfg="/etc/kamailio/kamailio.cfg"
   local rtpengine_modules="" rtpengine_params="" rtpengine_offer="" rtpengine_delete=""
   local cfg_group="${KAMAILIO_RUNTIME_GROUP}"
-  local private_ip="" public_ip="" listen_block="" alias_block="" record_route_block="" sbc_internal_route_rewrite="" sbc_internal_source_ip="" sbc_webrtc_dialog_location_route=""
+  local private_ip="" public_ip="" public_ip6="" listen_block="" alias_block="" record_route_block="" sbc_internal_route_rewrite="" sbc_internal_source_ip="" sbc_webrtc_dialog_location_route=""
   resolve_kamailio_sip_listen_ip
   private_ip="${KAMAILIO_SIP_LISTEN_IP}"
   public_ip="$(public_ipv4)"
@@ -552,6 +579,18 @@ EOF
     listen_block="listen=udp:${KAMAILIO_SIP_LISTEN_IP}:5060
 listen=tcp:${KAMAILIO_SIP_LISTEN_IP}:5060"
     alias_block="alias=\"${KAMAILIO_SIP_LISTEN_IP}:5060\""
+    record_route_block="      record_route();"
+  fi
+  public_ip6="$(public_ipv6)"
+  if [[ -n "${public_ip6}" ]]; then
+    # Dual stack: IPv6 sockets listen directly. record_route() inserts the advertised address of
+    # each socket and enable_double_rr adds both hops when a call crosses IPv4/IPv6.
+    listen_block+="
+listen=udp:[${public_ip6}]:5060
+listen=tcp:[${public_ip6}]:5060
+dns_try_ipv6=yes"
+    alias_block+="
+alias=\"[${public_ip6}]:5060\""
     record_route_block="      record_route();"
   fi
   rtpengine_offer='
