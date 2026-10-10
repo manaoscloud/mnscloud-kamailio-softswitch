@@ -145,6 +145,15 @@ When a public SIP address is available, the generated listeners use Kamailio `ad
 both the private listener and the public SIP identity as `alias` entries with port `5060`. This keeps
 in-dialog ACK/BYE/re-INVITE routing deterministic behind NAT or container networking, because
 `loose_route()` can consume the Softswitch-owned Route hop before forwarding to the registered UA.
+When the host has a stable global IPv6 (temporary, deprecated, ULA and link-local addresses are
+ignored), the installer adds direct `listen=udp:[<ipv6>]:5060`/`listen=tcp:[<ipv6>]:5060` sockets,
+an IPv6 `alias`, and `dns_try_ipv6=yes`, and switches the INVITE Record-Route to `record_route()`
+so each socket inserts its advertised address and `enable_double_rr` covers IPv4/IPv6 crossings.
+`MNSCLOUD_KAMAILIO_SIP_LISTEN_IPV6` selects an explicit host address or `off` for IPv4 only. The
+bootstrap always reports `publicIPv6` (empty when none), which the control plane stores in
+`VsrPublicIPv6` and publishes as an AAAA record for managed SIP realms. IPv4-only hosts keep the
+previous configuration unchanged. The rtpengine media relay remains IPv4; IPv6-only endpoints need
+a dual-stack media relay before audio can be anchored.
 The generated dialog route calls `loose_route()` once per in-dialog request; each chained engine must
 consume only its own Record-Route hop and leave the next hop for the next engine.
 When the Softswitch is chained behind an MNSCloud SBC and both servers share a private/service
