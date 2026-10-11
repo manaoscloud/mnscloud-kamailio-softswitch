@@ -117,7 +117,10 @@ O instalador:
 - cria ou reaproveita `/etc/mnscloud/softswitch/api.token`;
 - tenta vincular o node UUID via API bootstrap usando hostname, IPv4 privado e IPv4 público descoberto;
 - salva `/etc/mnscloud/softswitch/media.socket` quando a API retorna o `rtpengineSocket` do
-  `RealtimeMediaServer` selecionado;
+  `RealtimeMediaServer` selecionado (uma falha de bootstrap nunca altera o socket salvo);
+- o sync de runtime (`voip.softswitch.sync`) compara o `rtpengineSocket` do heartbeat com o
+  `rtpengine_sock` do `kamailio.cfg` em execução e, se diferir, reexecuta o instalador em modo
+  `MNSCLOUD_SOFTSWITCH_MEDIA_RECONFIGURE=true` (bootstrap, render, `kamailio -c` e restart);
 - não executa SQL direto nem instala cliente MariaDB para vincular o node UUID;
 - faz backup do `/etc/kamailio/kamailio.cfg` original como `.bkp`;
 - gera um `kamailio.cfg` com autenticação SIP digest para REGISTER e INVITE de assinantes;
