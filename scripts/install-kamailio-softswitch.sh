@@ -476,12 +476,14 @@ bootstrap_node_via_api() {
   http_code="$(curl -sS -o "${response_file}" -w "%{http_code}" -X POST "${API_BASE}/api/v1/softswitch/runtime/bootstrap?node_uuid=${NODE_UUID}&engine=${SOFTSWITCH_ENGINE}" -H "Content-Type: application/json" -H "Authorization: Bearer ${API_TOKEN}" -H "X-Softswitch-Engine: ${SOFTSWITCH_ENGINE}" --data "${payload}" 2>>"${LOG_FILE}")"
   server_uuid="$(json_field "serverUUID" "${response_file}")"
   media_socket="$(json_field "rtpengineSocket" "${response_file}")"
-  if [[ -n "${media_socket}" ]]; then
+  # Only an authorized answer changes the media binding: a failed call keeps the stored socket, so
+  # an API outage never renders Kamailio without RTP anchoring.
+  if [[ "${http_code}" == "200" && -n "${media_socket}" ]]; then
     MEDIA_SOCKET="${media_socket}"
     write_file "${MEDIA_SOCKET_FILE}" "${MEDIA_SOCKET}"
     run "chown root:root '${MEDIA_SOCKET_FILE}'"
     run "chmod 0640 '${MEDIA_SOCKET_FILE}'"
-  else
+  elif [[ "${http_code}" == "200" ]]; then
     MEDIA_SOCKET=""
     rm -f "${MEDIA_SOCKET_FILE}"
   fi
@@ -1422,4 +1424,31 @@ main() {
   ok "Kamailio installed. Node UUID: ${NODE_UUID}"
 }
 
-main "$@"
+# Media relay reconfiguration, called by the runtime sync when the API rtpengine socket differs from
+# the running kamailio.cfg (rtpengine.so cannot be loaded or re-pointed at runtime). It refreshes the
+# binding from the API and re-renders/restarts Kamailio, without package, security or Agent work.
+reconfigure_media() {
+  require_root
+  ensure_api_base_file
+  ensure_node_uuid_file
+  ensure_api_token_file
+  validate_pike_settings
+  validate_uac_default_socket
+  ensure_uac_db_text
+  if ! bootstrap_node_via_api; then
+    err "Softswitch API bootstrap failed; Kamailio configuration was left unchanged."
+    exit 1
+  fi
+  ensure_uac_contact_addr
+  load_sbc_internal_sip_target
+  ensure_kamailio_runtime_dir
+  write_kamailio_config
+  enable_service
+  ok "Kamailio media relay reconfigured: ${MEDIA_SOCKET:-none}"
+}
+
+if [[ "${MNSCLOUD_SOFTSWITCH_MEDIA_RECONFIGURE:-false}" == true ]]; then
+  reconfigure_media
+else
+  main "$@"
+fi

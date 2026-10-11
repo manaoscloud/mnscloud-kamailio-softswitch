@@ -17,6 +17,8 @@ KAMAILIO_RUNTIME_GROUP="${MNSCLOUD_KAMAILIO_RUNTIME_GROUP:-kamailio}"
 CURL_CONNECT_TIMEOUT="${MNSCLOUD_SOFTSWITCH_CURL_CONNECT_TIMEOUT:-5}"
 CURL_MAX_TIME="${MNSCLOUD_SOFTSWITCH_CURL_MAX_TIME:-30}"
 KAMCMD_TIMEOUT="${MNSCLOUD_SOFTSWITCH_KAMCMD_TIMEOUT:-10}"
+KAMAILIO_CFG_FILE="${MNSCLOUD_KAMAILIO_CFG_FILE:-/etc/kamailio/kamailio.cfg}"
+SOFTSWITCH_INSTALLER="${MNSCLOUD_SOFTSWITCH_INSTALLER:-$(cd "$(dirname "$0")" && pwd)/install-kamailio-softswitch.sh}"
 
 read_value() { tr -d '[:space:]' < "$1"; }
 private_ipv4() {
@@ -68,6 +70,32 @@ state_payload='{"registrations":[]}'
 previous_revision="$(jq -r '.revision // empty' <<<"$state_payload")"
 response="$(mktemp)"
 trap 'rm -f "$response"' EXIT
+
+# Media relay binding: the API is the source of truth for the rtpengine socket (Softswitch server ->
+# media server -> private NG address). It is compared with the socket the running kamailio.cfg uses;
+# linking, unlinking or a new media address re-renders Kamailio through the installer. An unchanged
+# socket costs one heartbeat call; a heartbeat failure skips the check and keeps the current config.
+running_media_socket() {
+  [[ -r "$KAMAILIO_CFG_FILE" ]] || return 0
+  sed -n 's/^[[:space:]]*modparam("rtpengine", "rtpengine_sock", "\([^"]*\)").*/\1/p' "$KAMAILIO_CFG_FILE" | head -n 1
+}
+converge_media_socket() {
+  local http_code desired current
+  http_code="$(curl -sS --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" -o "$response" -w '%{http_code}' -X POST "${api_base%/}/api/v1/softswitch/runtime/heartbeat?node_uuid=${node_uuid}&engine=kamailio" -H "Authorization: Bearer ${api_token}" -H 'X-Softswitch-Engine: kamailio' -H 'Content-Type: application/json' --data '{"engine":"kamailio"}')" || http_code="000"
+  if [[ "$http_code" != 200 ]]; then
+    echo "[sync-kamailio-softswitch-runtime] media relay check skipped: heartbeat returned HTTP ${http_code}" >&2
+    return 0
+  fi
+  desired="$(jq -r '.data.rtpengineSocket // empty' "$response")"
+  current="$(running_media_socket)"
+  [[ "$desired" == "$current" ]] && return 0
+  echo "[sync-kamailio-softswitch-runtime] media relay changed (${current:-none} -> ${desired:-none}); reconfiguring Kamailio"
+  MNSCLOUD_SOFTSWITCH_MEDIA_RECONFIGURE=true bash "$SOFTSWITCH_INSTALLER" || {
+    echo "[sync-kamailio-softswitch-runtime] Kamailio media relay reconfiguration failed" >&2
+    return 1
+  }
+}
+converge_media_socket
 
 registration_is_active_or_in_progress() {
   local id="$1" result="" command_status=0 flag_value=""

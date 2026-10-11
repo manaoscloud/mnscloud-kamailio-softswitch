@@ -49,6 +49,9 @@ monorepo at runtime.
 - When `rtpengineSocket` is returned by runtime bootstrap, generated Kamailio config must load
   `rtpengine.so`, set `rtpengine_sock`, and anchor INVITE dialogs with SDP. Without that socket, the
   connector must keep running without RTP anchoring.
+- The runtime sync converges the media binding: when the heartbeat `rtpengineSocket` differs from
+  the running `rtpengine_sock`, it reruns the installer with `MNSCLOUD_SOFTSWITCH_MEDIA_RECONFIGURE=true`.
+  Never remove the stored socket on a failed bootstrap call.
 - Codec policy is control-plane owned. When runtime auth/route responses include
   `codecPolicy.rtpengineFlags`, pass those API-generated flags to `rtpengine_offer()` and
   `rtpengine_answer()`. Do not expose or persist arbitrary user-provided rtpengine flags in this

@@ -141,6 +141,15 @@ bootstrapping.
 When the API returns `rtpengineSocket`, the installer stores it in
 `/etc/mnscloud/softswitch/media.socket` and enables Kamailio `rtpengine` handling in the generated
 configuration. Without an assigned media relay, Kamailio runs as SIP signaling/proxy only.
+A failed bootstrap call never changes the stored socket.
+
+The media binding converges without reinstalling: every `voip.softswitch.sync` job (queued by the
+control plane when the Softswitch server media link or the media NG address changes) compares the
+heartbeat `rtpengineSocket` with the `rtpengine_sock` of the running `kamailio.cfg`. On a difference
+it runs the installer in media-reconfigure mode (`MNSCLOUD_SOFTSWITCH_MEDIA_RECONFIGURE=true`):
+bootstrap, re-render, `kamailio -c` and restart, without package or Agent work. The restart is needed
+because `rtpengine.so` cannot be loaded or re-pointed at runtime; it only happens when the socket
+changes.
 When a public SIP address is available, the generated listeners use Kamailio `advertise` and declare
 both the private listener and the public SIP identity as `alias` entries with port `5060`. This keeps
 in-dialog ACK/BYE/re-INVITE routing deterministic behind NAT or container networking, because
