@@ -75,6 +75,15 @@ uma chamada já roteada; autenticação e roteamento continuam fail-closed nos s
 OpenSIPS como engine Softswitch fica reservado/fail-closed até existir runtime Softswitch OpenSIPS
 homologado neste produto.
 
+## Tech prefix de saída
+
+A rota de saída (`POST /api/v1/softswitch/runtime/route`) devolve em `data.destination` o número já
+pronto para a operadora: tech prefix efetivo (assinante, depois tronco, depois conta Softswitch)
+seguido do resultado do strip/prepend da rota, com `#` escapado como `%23`. O Kamailio usa esse valor
+na Request-URI sem nenhuma manipulação local. O número discado original vem em
+`data.dialedDestination` e é o que o accounting envia como `callee`, para o histórico e a tarifação
+não verem o prefixo.
+
 ## Instalação
 
 Antes de instalar, confirme:
