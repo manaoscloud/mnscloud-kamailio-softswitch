@@ -320,3 +320,22 @@ curl -sS -X POST "${API_BASE}/api/v1/softswitch/runtime/heartbeat?node_uuid=${NO
   -H "X-Softswitch-Engine: kamailio" \
   --data '{"engine":"kamailio","hostname":"softswitch-dev1"}'
 ```
+
+## Engine log settings (server Logs tab)
+
+The Softswitch server **Logs** tab (enable, level `error|warning|notice|info|debug`, retention 1-90 days)
+is applied by `mnscloud-kamailio-softswitch-logs.timer`, installed by the installer and run every minute as
+root from `/usr/local/lib/mnscloud/engine-logs/kamailio-softswitch-logs.py` (shared core:
+`scripts/mnscloud_engine_logs.py`, identical in every engine repository).
+
+- Source: authenticated `POST /api/v1/softswitch/runtime/log-config` with the node identity; HTTPS only, no
+  redirects. When the API is unreachable the last applied settings stay in force.
+- Disabled log = level `error` (errors and security events are always kept). Debug is a 4 hour
+  window decided by the API; it falls back to `notice`. Below 15% free disk debug/info are capped at
+  `notice`.
+- Live apply: `kamcmd corex.debug N` (no restart). The lowest level applied is L_WARN, because the "SIP edge denied" line read by CrowdSec is L_WARN. Re-applied after an engine restart.
+- Retention: Copy-and-truncate of `/var/log/mnscloud/kamailio/kamailio.{err,out}.log` and the CDR capture log, gzip, deletion past the retention. The shared installer log `/var/log/mnscloud-install.log` follows the same
+  retention.
+- Status: `journalctl -u mnscloud-kamailio-softswitch-logs` (one JSON line per run, never tokens).
+- Tests: `python3 tests/engine-logs.py && python3 tests/kamailio-softswitch-logs.py`.
+

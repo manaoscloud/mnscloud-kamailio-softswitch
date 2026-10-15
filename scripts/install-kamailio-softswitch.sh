@@ -4,6 +4,8 @@ set -euo pipefail
 LOG_PREFIX="[install-kamailio-softswitch]"
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib/install-base.sh" "$@"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/engine-logs.sh"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -1424,6 +1426,7 @@ main() {
   ensure_kamailio_runtime_dir
   write_kamailio_config
   enable_service
+  install_engine_logs_timer kamailio-softswitch "${SCRIPT_DIR}"
   refresh_agent_capabilities
   ok "Kamailio installed. Node UUID: ${NODE_UUID}"
 }
