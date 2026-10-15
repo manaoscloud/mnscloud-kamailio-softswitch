@@ -895,6 +895,10 @@ route[API_ROUTE] {
   if (!jansson_get(\"data.destination\", \"\$var(route_reply)\", \"\$var(route_destination)\")) {
     \$var(route_destination) = \$rU;
   }
+  # The destination may carry the outbound tech prefix; CDR and rating keep the dialed number.
+  if (!jansson_get(\"data.dialedDestination\", \"\$var(route_reply)\", \"\$avp(callee_number)\")) {
+    \$avp(callee_number) = \$var(request_user);
+  }
   jansson_get(\"data.accountUUID\", \"\$var(route_reply)\", \"\$avp(account_uuid)\");
   jansson_get(\"data.subscriberUUID\", \"\$var(route_reply)\", \"\$avp(subscriber_uuid)\");
   jansson_get(\"data.trunkUUID\", \"\$var(route_reply)\", \"\$avp(trunk_uuid)\");
