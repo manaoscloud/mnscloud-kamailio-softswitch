@@ -195,7 +195,14 @@ configuration.
 
 ## Update
 
-Use this recovery-safe command on every installed server. It first inspects local Git changes. If
+MNSCloud delivery (maintainers and AI agents) updates every node through the Agent: the workspace
+`scripts/ops/rollout.sh <dev|prod> mnscloud-kamailio-softswitch` (PROD only after the user
+authorizes the task). The commands below are the operator runbook on the target host, as root;
+on a shared MNSCloud host they run by hand only with the user's explicit authorization for that
+host.
+
+One-time legacy recovery (a host whose lifecycle scripts were edited locally): use this
+recovery-safe command once on that server. It first inspects local Git changes. If
 the changes are only in managed lifecycle scripts, it creates an audit backup under
 `/var/backups/mnscloud/kamailio-softswitch/`, restores just those scripts from reviewed
 `origin/main`, resolves the published `stable` release, reapplies the installer, and validates the
